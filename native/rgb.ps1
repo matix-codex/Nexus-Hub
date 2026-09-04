@@ -12,6 +12,7 @@ try {
       switch ($request.action) {
         'status' { $result = [RgbSdk]::Status($Provider, $SdkPath) }
         'apply' { [RgbSdk]::Apply([string]$value.id, [int]$value.r, [int]$value.g, [int]$value.b) }
+        'frame' { [RgbSdk]::Frame([string]$value.id, [int[]]$value.colors) }
         default { throw 'Onbekende RGB-actie.' }
       }
       [Console]::WriteLine((@{ id = $request.id; result = $result } | ConvertTo-Json -Depth 8 -Compress))

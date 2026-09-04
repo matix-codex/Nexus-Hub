@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const invoke = (channel) => (...args) => ipcRenderer.invoke(channel, ...args);
 contextBridge.exposeInMainWorld('nexus', {
+  rgbStop:invoke('rgb:stop'),rgbEffect:invoke('rgb:effect'),
+  storeStatus:invoke('store:status'),storeRefresh:invoke('store:refresh'),storeInstall:invoke('store:install'),storeRemove:invoke('store:remove'),storeData:invoke('store:data'),storeTheme:invoke('store:theme'),storeRepository:invoke('store:repository'),
+  onStore(callback) {const listener=(_e,data)=>callback(data);ipcRenderer.on('store:state',listener);return()=>ipcRenderer.removeListener('store:state',listener);},
   updateCheck: invoke('updates:check'), updateDownload: invoke('updates:download'), updateInstall: invoke('updates:install'), updateRelease: invoke('updates:release'),
   onUpdate(callback) { const listener = (_event, data) => callback(data); ipcRenderer.on('updates:state', listener); return () => ipcRenderer.removeListener('updates:state', listener); },
   rgbInstallMsi: invoke('rgb:install-msi'), chooseCover: invoke('games:cover'), radioSearch: invoke('radio:search'), radioFavorite: invoke('radio:favorite'), rgbStatus: invoke('rgb:status'), rgbApply: invoke('rgb:apply'), rgbOpen: invoke('rgb:open'),

@@ -13,10 +13,17 @@ function Await-WinRT($operation, $type) {
   if (-not $task.Wait(2500)) { throw 'Media request timed out.' }
   return $task.Result
 }
-function Get-Media {
+function Get-Session([string]$source = 'windows') {
+  if ($null -eq $script:manager) { $script:manager = Await-WinRT ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]) }
+  if ($source -eq 'spotify') { return @($script:manager.GetSessions() | Where-Object { $_.SourceAppUserModelId -match 'spotify' }) | Select-Object -First 1 }
+  $session = $script:manager.GetCurrentSession()
+  if ($null -ne $session -and $session.SourceAppUserModelId -notmatch 'nexus') { return $session }
+  return @($script:manager.GetSessions() | Where-Object { $_.SourceAppUserModelId -notmatch 'nexus' }) | Select-Object -First 1
+}
+function Get-Media([string]$source = 'windows') {
   try {
     if ($null -eq $script:manager) { $script:manager = Await-WinRT ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]) }
-    $session = $script:manager.GetCurrentSession()
+    $session = Get-Session $source
     if ($null -eq $session) { return $null }
     $properties = Await-WinRT ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
     $playback = $session.GetPlaybackInfo()
@@ -31,19 +38,20 @@ while ($null -ne ($line = [Console]::ReadLine())) {
     $request = $line | ConvertFrom-Json
     $result = $true
     switch ($request.action) {
-      'snapshot' { $result = @{ audio = [Nexus.Windows]::GetAudio($false); mic = [Nexus.Windows]::GetAudio($true); network = [Nexus.Windows]::Network(); media = Get-Media } }
+      'snapshot' { $result = @{ audio = [Nexus.Windows]::GetAudio($false); mic = [Nexus.Windows]::GetAudio($true); network = [Nexus.Windows]::Network(); media = Get-Media; spotify = Get-Media 'spotify' } }
       'volume' { [Nexus.Windows]::SetVolume($false, [double]$request.value) }
       'mute' { [Nexus.Windows]::SetMute($false, [bool]$request.value) }
       'mic' { [Nexus.Windows]::SetMute($true, [bool]$request.value) }
       'media' {
         if ($null -eq $script:manager) { $null = Get-Media }
         if ($null -eq $script:manager) { throw 'Open eerst Spotify of een andere mediaspeler.' }
-        $session = $script:manager.GetCurrentSession()
+        $session = Get-Session $request.value.source
         if ($null -eq $session) { throw 'Er is geen actieve mediasessie.' }
-        switch ($request.value) {
+        switch ($request.value.action) {
           'toggle' { $op = $session.TryTogglePlayPauseAsync() }
           'next' { $op = $session.TrySkipNextAsync() }
           'previous' { $op = $session.TrySkipPreviousAsync() }
+          'pause' { $op = $session.TryPauseAsync() }
           default { throw 'Unknown media command.' }
         }
         $result = Await-WinRT $op ([bool])

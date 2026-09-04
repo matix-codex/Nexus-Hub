@@ -14,3 +14,4 @@ native/webview2/
 *.p12
 
 native/bin/
+app-store/

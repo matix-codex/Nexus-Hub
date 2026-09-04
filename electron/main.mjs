@@ -15,7 +15,8 @@ import { RadioDirectory, station } from './radio.mjs';
 import { RGB } from './rgb.mjs';
 import electronUpdater from 'electron-updater';
 import { Updates } from './updates.mjs';
-protocol.registerSchemesAsPrivileged([{ scheme: 'nexus-cover', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+import { Marketplace } from './marketplace.mjs';
+protocol.registerSchemesAsPrivileged([{ scheme: 'nexus-cover', privileges: { standard: true, secure: true, supportFetchAPI: true } }, {scheme:'nexus-extension',privileges:{standard:true,secure:true}}]);
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const testing = Boolean(process.env.NEXUS_TEST_DATA);
@@ -27,7 +28,7 @@ if (!hasLock) app.quit();
 let win, tray, store, native, quit = false, scanning = false, library = { games: [], startApps: [], warnings: [], scannedAt: null };
 let activeService = null, overlay = false, metrics = {}, networkSample = null;
 let dashboardWanted = true, positioning = false, repositionTimer;
-let desktop, artwork, hardware, rgb, updates; let nativeApps = {}; let nativeOpening = null; let serviceGeneration = 0; let stopping = false;
+let desktop, artwork, hardware, rgb, updates, marketplace; let nativeApps = {}; let nativeOpening = null; let serviceGeneration = 0; let stopping = false;
 const radio = new RadioDirectory();
 const appPopups = new Map();
 const views = new Map();
@@ -122,7 +123,7 @@ function hideService() {
   for (const popup of appPopups.values()) if (!popup.isDestroyed()) popup.hide();
   activeService = null;
 }
-const serviceDefinition = id => SERVICES[id] || store.data.webWidgets.find(w => w.id === id);
+const serviceDefinition = id => SERVICES[id] || store.data.webWidgets.find(w => w.id === id) || (typeof id === 'string' && id.startsWith('store:') ? marketplace?.service(id.slice(6)) : null);
 function updateTray() {
   if (!tray || tray.isDestroyed()) return;
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -238,6 +239,20 @@ async function openServiceInternal(id) {
 }
 
 function installHandlers() {
+  handle('store:status', () => marketplace.snapshot());
+  handle('store:refresh', () => marketplace.refresh());
+  handle('store:install', async id => { const result = await marketplace.install(id); const key=`store:${id}`,view=views.get(key);if(view){if(activeService===key)hideService();win.contentView.removeChildView(view);view.webContents.close();views.delete(key);}broadcast(); return result; });
+  handle('store:remove', async id => {
+    if (activeService === `store:${id}`) hideService();
+    const view = views.get(`store:${id}`); if(view){win.contentView.removeChildView(view);view.webContents.close();views.delete(`store:${id}`);}
+    await marketplace.remove(id);
+    for (const key of Object.keys(store.data.layouts)) store.data.layouts[key]=store.data.layouts[key].filter(w=>w!==`store:${id}`);
+    if (store.data.settings.storeTheme===id) store.data.settings.storeTheme=null;
+    save(); return marketplace.snapshot();
+  });
+  handle('store:data', (id, value) => marketplace.data(id, value));
+  handle('store:theme', id => { const p=marketplace.content(id); if(p.kind!=='theme')throw new Error('Kies een thema.'); store.data.settings.storeTheme=id;return save(); });
+  handle('store:repository', () => shell.openExternal('https://github.com/matix-codex/Nexus-Store'));
   handle('updates:check', () => updates.check());
   handle('updates:download', () => updates.download());
   handle('updates:install', () => updates.install());
@@ -258,7 +273,9 @@ function installHandlers() {
     store.data.radioFavorites = list.some(s => s.id === item.id) ? list.filter(s => s.id !== item.id) : [...list, item].slice(-200);
     return save();
   });
-  handle('rgb:status', () => rgb.status());
+  handle('rgb:status', force => rgb.status(force===true));
+  handle('rgb:stop', () => rgb.stopEffect());
+  handle('rgb:effect', () => rgb.effectStatus());
   handle('rgb:apply', value => rgb.apply(value));
   handle('rgb:open', id => rgb.open(id));
   handle('rgb:install-msi', () => rgb.installMsi());
@@ -292,6 +309,7 @@ function installHandlers() {
       store.data.settings.displayIdentity = rememberDisplay(chosen);
     }
     Object.assign(store.data.settings, settings);
+    if ('theme' in settings) store.data.settings.storeTheme=null;
     if ('displayId' in settings || 'fullscreen' in settings) { overlay = false; positionOnSelectedDisplay(); }
     if ('alwaysOnTop' in settings) win.setAlwaysOnTop(settings.alwaysOnTop);
     if ('autostart' in settings && app.isPackaged) app.setLoginItemSettings({ openAtLogin: settings.autostart, path: app.getPath('exe') });
@@ -299,7 +317,7 @@ function installHandlers() {
   });
   handle('layout:save', (profile, widgets, sizes) => {
     if (!['command', 'gaming', 'focus'].includes(profile) || !Array.isArray(widgets)) throw new Error('Ongeldige indeling.');
-    const allowed = [...WIDGETS, ...store.data.webWidgets.map(w => w.id)];
+    const allowed = [...WIDGETS, ...store.data.webWidgets.map(w => w.id), ...Object.values(marketplace.installed).filter(p=>p.kind!=='theme').map(p=>`store:${p.id}`)];
     store.data.layouts[profile] = [...new Set(widgets.filter(id => allowed.includes(id)))];
     if (sizes && typeof sizes === 'object') for (const [id, value] of Object.entries(sizes)) if (allowed.includes(id) && ['normal', 'wide'].includes(value)) store.data.sizes[id] = value;
     return save();
@@ -337,7 +355,7 @@ function installHandlers() {
     if (action !== 'volume' && typeof value !== 'boolean') throw new Error('Ongeldige mute-waarde.');
     await native.request(action, value); await nativeSnapshot(); return true;
   });
-  handle('media:action', async action => { if (!['toggle', 'next', 'previous'].includes(action)) throw new Error('Onbekende mediaactie.'); await native.request('media', action); await nativeSnapshot(); });
+  handle('media:action', async (action, source = 'windows') => { if (!['toggle', 'next', 'previous','pause'].includes(action) || !['windows','spotify'].includes(source)) throw new Error('Onbekende mediaactie.'); await native.request('media', { action, source }); await nativeSnapshot(); });
   handle('launcher:open', name => {
     if (!LAUNCHERS[name]) throw new Error('Onbekende launcher.');
     if (library.protocols?.[LAUNCHERS[name].split(':')[0]] === false) throw new Error(`${name} is niet geïnstalleerd of heeft geen geregistreerde snelkoppeling. Installeer de launcher of voeg een game handmatig toe.`);
@@ -395,8 +413,8 @@ function installHandlers() {
     const settings = validateSettings(data.settings);
     for (const key of ['theme', 'density', 'profile', 'reduceMotion']) if (key in settings) store.data.settings[key] = settings[key];
     store.data.webWidgets = (Array.isArray(data.webWidgets) ? data.webWidgets : []).filter(w => typeof w.id === 'string' && /^web-[a-zA-Z0-9-]+$/.test(w.id) && typeof w.name === 'string' && safeWebUrl(w.url)).slice(0, 30).map(w => ({ id: w.id, name: w.name.slice(0, 50), url: safeWebUrl(w.url) }));
-    const allowed = [...WIDGETS, ...store.data.webWidgets.map(w => w.id)];
-    for (const profile of ['command', 'gaming', 'focus']) if (Array.isArray(data.layouts?.[profile])) store.data.layouts[profile] = [...new Set(data.layouts[profile].filter(w => allowed.includes(w)))];
+    const allowed = [...WIDGETS, ...store.data.webWidgets.map(w => w.id), ...Object.values(marketplace.installed).filter(p=>p.kind!=='theme').map(p=>`store:${p.id}`)];
+    for (const profile of ['command', 'gaming', 'focus']) if (Array.isArray(data.layouts?.[profile])) store.data.layouts[profile] = [...new Set(data.layouts[profile].map(w=>w==='radio'?'media':w).filter(w => allowed.includes(w)))];
     store.data.sizes = Object.fromEntries(Object.entries(data.sizes || {}).filter(([k, v]) => allowed.includes(k) && ['normal', 'wide'].includes(v)));
     return save();
   });
@@ -421,6 +439,23 @@ function emitMetrics() { if (win && !win.isDestroyed()) win.webContents.send('me
 
 if (hasLock) app.whenReady().then(async () => {
   store = new Store(app.getPath('userData'));
+  if (!store.data.feature130) {
+    for (const key of Object.keys(store.data.layouts)) {
+      const next=store.data.layouts[key].map(w=>w==='radio'?'media':w).flatMap(w=>w==='social'?['app-discord','app-whatsapp','app-spotify']: [w]);
+      store.data.layouts[key]=[...new Set(next)];
+    }
+    store.data.feature130=true;store.save();
+  }
+  marketplace=new Marketplace(app.getPath('userData'),app.getVersion());await marketplace.init();
+  marketplace.on('state', data=>{if(win&&!win.isDestroyed())win.webContents.send('store:state',data);});
+  if(testing)app.nexusTestMarketplace=marketplace;
+  protocol.handle('nexus-extension', request=>{
+    try {
+      const url=new URL(request.url), id=url.pathname.slice(1);if(url.hostname!=='package'||!Object.hasOwn(marketplace.installed,id))return new Response('Not found',{status:404});
+      const p=marketplace.content(id);if(p.content.type!=='sandbox')return new Response('Not found',{status:404});
+      return new Response(p.content.html,{headers:{'content-type':'text/html; charset=utf-8','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'",'Cache-Control':'no-store'}});
+    }catch{return new Response('Not found',{status:404});}
+  });
   updates = new Updates({
     engine: electronUpdater.autoUpdater, version: app.getVersion(), enabled: app.isPackaged && process.platform === 'win32',
     automatic: () => !testing && store.data.settings.checkUpdates,
@@ -468,6 +503,18 @@ if (hasLock) app.whenReady().then(async () => {
   win = new BrowserWindow({ width: Math.min(1600, preferred.workArea.width), height: Math.min(960, preferred.workArea.height), x: preferred.workArea.x, y: preferred.workArea.y, minWidth: 480, minHeight: 560, frame: false, skipTaskbar: true, backgroundColor: '#0c0f14', show: false, title: 'Nexus Hub', icon: path.join(directory, '..', 'assets', 'icon.png'), webPreferences: { preload: path.join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
   Menu.setApplicationMenu(null);
   win.webContents.on('will-navigate', event => event.preventDefault());
+  win.webContents.on('will-frame-navigate', event => {
+    if (!event.isMainFrame && event.url.startsWith('nexus-extension://package/') && (!event.frame?.url || event.frame.url==='about:blank')) return;
+    event.preventDefault();
+  });
+  win.webContents.session.webRequest.onBeforeRequest((request, callback) => {
+    // A downloaded widget cannot navigate its sandbox to a remote page to send data.
+    if (request.resourceType==='subFrame') {
+      try {const url=new URL(request.url);return callback({cancel:url.protocol!=='nexus-extension:'||url.hostname!=='package'||!Object.hasOwn(marketplace.installed,url.pathname.slice(1))});}
+      catch {return callback({cancel:true});}
+    }
+    callback({});
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.session.setPermissionRequestHandler((_w, _p, callback) => callback(false));
   win.on('close', event => { if (!quit) { event.preventDefault(); hideMain(); } });
@@ -490,6 +537,7 @@ if (hasLock) app.whenReady().then(async () => {
   tray = new Tray(trayImage); tray.setToolTip('Nexus Hub · Ctrl+Shift+Space');
   updateTray();
   updates.start();
+  if(!testing) { const first=setTimeout(()=>marketplace.refresh(),20000);first.unref();timers.push(first,setInterval(()=>marketplace.refresh(),6*60*60*1000)); }
   tray.on('double-click', showMain);
   globalShortcut.register('CommandOrControl+Shift+Space', () => win.isVisible() ? hideMain() : showMain());
   globalShortcut.register('CommandOrControl+Shift+O', toggleOverlay);

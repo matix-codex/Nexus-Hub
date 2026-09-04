@@ -34,23 +34,28 @@ public static class DesktopApps {
   static readonly object gate = new object(); static IntPtr parent; static string active; static bool visible;
   static int x = 90, y = 150, width = 900, height = 650, parentWidth = 1100;
   static Timer timer;
-  static bool Match(IntPtr hwnd, string id) {
-    try { uint pid; GetWindowThreadProcessId(hwnd, out pid); string name = Process.GetProcessById((int)pid).ProcessName.ToLowerInvariant();
-      return id == "discord" ? name == "discord" : id == "spotify" ? name == "spotify" : id == "whatsapp" && (name == "whatsapp" || name == "whatsapp.root");
-    } catch { return false; }
-  }
+  static bool Match(IntPtr hwnd, HashSet<uint> processes) { uint pid; GetWindowThreadProcessId(hwnd, out pid); return processes.Contains(pid); }
   public static string Attach(string id, long host) {
     lock (gate) {
       Hide(); parent = new IntPtr(host);
       Managed item;
       if (windows.TryGetValue(id, out item) && !IsWindow(item.Window)) windows.Remove(id);
       if (!windows.TryGetValue(id, out item)) {
-        IntPtr found = IntPtr.Zero; long area = 0;
+        var processes = new HashSet<uint>();
+        foreach (string name in id == "whatsapp" ? new[] { "WhatsApp", "WhatsApp.Root" } : new[] { id })
+          foreach (Process process in Process.GetProcessesByName(name)) { using (process) { try { processes.Add((uint)process.Id); } catch {} } }
+        IntPtr found = IntPtr.Zero; long area = 0; bool foundVisible = false;
         EnumWindows(delegate(IntPtr hwnd, IntPtr data) {
-          bool match = Match(hwnd, id);
-          if (!match) EnumChildWindows(hwnd, delegate(IntPtr child, IntPtr unused) { if (Match(child, id)) match = true; return !match; }, IntPtr.Zero);
+          bool isVisible = IsWindowVisible(hwnd);
+          // A tray app can keep its real main window hidden after activation.
+          // Hidden message/helper windows have no caption or resize frame.
+          if (!isVisible && (GetWindowLongPtr(hwnd, -16).ToInt64() & 0xC40000L) == 0) return true;
+          bool match = Match(hwnd, processes);
+          if (!match) EnumChildWindows(hwnd, delegate(IntPtr child, IntPtr unused) { if (Match(child, processes)) match = true; return !match; }, IntPtr.Zero);
+          if (!match) return true;
           Rect rect; GetWindowRect(hwnd, out rect); long size = (long)(rect.Right - rect.Left) * (rect.Bottom - rect.Top);
-          if (match && IsWindowVisible(hwnd) && size > area && size > 10000) { found = hwnd; area = size; } return true;
+          if (IsIconic(hwnd)) { Placement position = new Placement(); position.length = Marshal.SizeOf(typeof(Placement)); if (GetWindowPlacement(hwnd, ref position)) size = (long)(position.normal.Right-position.normal.Left)*(position.normal.Bottom-position.normal.Top); }
+          if (size > 10000 && ((!foundVisible && isVisible) || (foundVisible == isVisible && size > area))) { found = hwnd; area = size; foundVisible = isVisible; } return true;
         }, IntPtr.Zero);
         if (found == IntPtr.Zero) throw new Exception("Het Windows-appvenster is nog niet beschikbaar. Open de app en probeer opnieuw.");
         Placement original = new Placement(); original.length = Marshal.SizeOf(typeof(Placement)); GetWindowPlacement(found, ref original);

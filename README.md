@@ -4,7 +4,7 @@ Een Windows-dashboard voor je tweede scherm met games, Windows-apps, hardwaremet
 
 ## Installeren
 
-Download **Nexus-Hub-Setup-1.2.0.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest). Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
+Download **Nexus-Hub-Setup-1.3.0.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest), of werk vanuit Nexus 1.2.0 bij via **Instellingen → Nexus-updates**. Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
 
 Kies in **Instellingen** je extra beeldscherm en schakel **Volledig scherm** in. Nexus bewaart de keuze, ook na herstart en voor de compacte overlay. Als het scherm wordt losgekoppeld, wacht Nexus verborgen op datzelfde scherm. Via **Vast scherm** in het systeemvak kun je een ander scherm kiezen.
 
@@ -25,7 +25,7 @@ Kies **Update downloaden** en daarna **Installeren en herstarten**. **Later** st
 
 Onder **Instellingen → Nexus-updates** staan de huidige versie, laatste controle en een handmatige controleknop. Automatisch controleren kun je daar uitschakelen. Bij verbindings- of downloadproblemen blijft Nexus bruikbaar en kun je opnieuw proberen. Een download die op de achtergrond afloopt, vraagt daarna om installatie.
 
-**Eenmalige overstap:** versie 1.1.0 en ouder hebben nog geen updater. Installeer 1.2.0 één keer met de installer; volgende versies worden vanuit Nexus aangeboden.
+**Eenmalige overstap:** versie 1.1.0 en ouder hebben nog geen updater. Installeer 1.3.0 één keer met de installer; volgende versies worden vanuit Nexus aangeboden.
 
 ## Games en hoezen
 
@@ -35,6 +35,8 @@ Onder **Instellingen → Nexus-updates** staan de huidige versie, laatste contro
 - Niet-herkende games voeg je toe via EXE/LNK/URL of Windows-app. Online aankopen die niet zijn geïnstalleerd worden niet uit winkelaccounts opgehaald. Launchers verzorgen updates, DRM en aanmelding.
 
 ## Echte Windows-apps
+
+Discord, WhatsApp en Spotify hebben elk een eigen dashboardwidget. **Open op dashboard** toont de Windows-app in de appwerkruimte, met tabs voor de drie apps. Sluit de werkruimte om terug te keren naar je widgets, of open de app via de zijbalk. De appwerkruimte houdt het native venster op een vaste plek; de widgets komen terug zodra je de werkruimte sluit.
 
 **WhatsApp, Discord en Spotify gebruiken de geïnstalleerde Windows-app.** Er wordt voor deze drie apps geen webpagina of WebView2-speler geopend. Hun bestaande aanmelding, gesprekken, voice- en muziekfuncties blijven in de oorspronkelijke app.
 
@@ -59,19 +61,41 @@ Het scherm toont de verbindingsstatus van elke bron en de laatste meettijd. Ontb
 
 ## Centrale RGB-bediening
 
-Open **RGB-verlichting**, selecteer apparaten/zones, kies kleur en helderheid en druk op **Toepassen**. **Verlichting uit** stuurt zwart naar de selectie. Resultaten en fouten verschijnen per apparaat.
+Open **RGB-verlichting**, selecteer apparaten/zones, kies **Statisch**, **Rainbow**, **Wave**, **Breathing** of **Color Cycle**, en stel kleur, helderheid en snelheid in. Druk op **Toepassen**. **Verlichting uit** stuurt zwart naar de selectie. Resultaten en fouten verschijnen per apparaat. Animaties lopen zolang Nexus actief is; **Schema stoppen** stopt het verloop. Bij een apparaatfout stopt het schema met een melding.
 
-- **Corsair iCUE:** directe SDK-koppeling voor statische verlichting. iCUE moet draaien en software-integraties toestaan. Nexus zoekt de SDK in de geïnstalleerde iCUE- en GIGABYTE-integraties. Een ontbrekende SDK wordt gemeld.
+- **Corsair iCUE:** directe SDK-koppeling met kleur per led. iCUE moet draaien en software-integraties toestaan. Nexus zoekt de SDK in de geïnstalleerde iCUE- en GIGABYTE-integraties. Een ontbrekende SDK wordt gemeld.
 - **MSI Center / Mystic Light:** directe Mystic Light SDK-adapter. Mystic Light en zijn service moeten beschikbaar zijn. **Officiële MSI SDK ophalen** downloadt SDK 1.0.0.08 rechtstreeks bij MSI en controleert de SHA-256 van archief en DLL. De SDK blijft lokaal; fabrikant-DLL’s worden niet in de GitHub-broncode of installer gekopieerd.
 - **GIGABYTE / OpenRGB:** compatibele apparaten lopen via de lokale OpenRGB SDK-server op 127.0.0.1:6742. Installeer [OpenRGB](https://openrgb.org/), controleer ondersteuning voor je model en zet de SDK-server aan. Nexus ondersteunt Direct-modus. Dit is geen directe universele API voor alle GIGABYTE Control Center-functies.
 
 Gebruik per fysiek apparaat één RGB-controller om conflicten te voorkomen. Nexus schakelt geen fabrikantservices uit en past bij opstarten geen verlichting toe. Een aangesloten fabrikantapp garandeert niet dat elk apparaat aan zijn SDK wordt vrijgegeven.
 
+Rainbow en Wave sturen verschillende kleuren per led op iCUE/OpenRGB. MSI-zones krijgen één kleur per zone; kleurcycli en ademen werken voor beschikbare zones. De effectmotor verstuurt maximaal ongeveer acht frames per seconde en wacht altijd op het vorige frame. Trage SDK's verlagen de snelheid zonder een wachtrij op te bouwen.
+
 Op de ontwikkelpc zijn K70 RGB MK.2, M65 PRO RGB en MM700 RGB via iCUE gedetecteerd. De MSI-SDK geeft daar momenteel geen tijdig antwoord; OpenRGB is niet actief. Die bronnen worden daarom niet als werkend gerapporteerd.
+
+## Eén mediawidget
+
+**Media** combineert Spotify, internetradio en andere Windows-mediasessies. Kies Automatisch, Spotify, Radio of Windows. Spotify wordt op zijn eigen mediasessie bediend; de Windows-modus volgt de actieve externe speler. Titels, artiesten, voortgang en beschikbare vorige/volgende/pauzeknoppen komen uit Windows.
+
+Radio speelt binnen dezelfde widget met eigen volume, favoriete zenders en een knop naar de zendercatalogus. Een bewust gekozen radiosessie pauzeert de actieve Windows-speler wanneer die dat ondersteunt. Terugschakelen naar Spotify/Windows stopt radio. Er wordt niets automatisch afgespeeld. Bestaande losse radiowidgets worden bij de eerste start van 1.3.0 samengevoegd met Media.
+
+## Nexus Store
+
+De [aparte GitHub-appstore](https://github.com/matix-codex/Nexus-Store) staat in **matix-codex/Nexus-Store**; de desktopcode en installers blijven in **Nexus-Hub**. Elk pakket heeft een eigen ID, versie, minimale Nexus-versie en checksum. Pakketten kunnen worden bijgewerkt zonder een nieuwe Nexus-installer.
+
+De eerste collectie heeft **12 uitbreidingen**: World Clock, Focus List, Quick Calc, Countdown, Session Stopwatch, Breathing Space, Wikipedia, Twitch en de thema's Obsidian, Ocean Blue, Sunset en Rose Quartz.
+
+- Zoek en filter op apps, widgets, toepassingen en thema's. Installeer, open, plaats op het dashboard of verwijder een pakket.
+- De tab **Updates** biedt updates per geïnstalleerd pakket. De catalogus wordt bij opstarten, elke zes uur en met **Updates controleren** opgehaald. Installeren en bijwerken start je zelf.
+- Lokale uitbreidingen draaien in sandboxframes zonder Nexus-preload, Node, bestandstoegang of netwerk. Eigen opslag is maximaal 64 KB en alleen beschikbaar als het pakket die machtiging vermeldt. Webapps openen in een eigen afgeschermd appvenster.
+- Downloads worden op SHA-256 en bestandsgrootte gecontroleerd. Een fout laat de oude versie intact. Eigen gegevens blijven behouden bij updates en herinstallatie; offline blijven geïnstalleerde lokale pakketten bruikbaar.
+- Thema's pas je vanuit de store toe. De drie ingebouwde thema's blijven in Instellingen beschikbaar.
+
+Pakketbroncode, schema, publicatie-instructies en catalogusvalidatie staan in de Nexus-Store-repository. Windows-versies van Spotify, WhatsApp en Discord behouden hun eigen officiële updater; de Nexus Store werkt Nexus-uitbreidingen bij.
 
 ## Internetradio
 
-De radiomodule en optionele radiowidget bieden zoeken op zender, land en genre via Radio Browser, lokale favorieten en eigen directe http(s)-streamadressen. MP3, AAC en ondersteunde OGG/Opus/FLAC-streams spelen binnen Nexus. HLS en M3U/PLS-afspeellijsten worden niet aangeboden.
+De radiocatalogus biedt zoeken op zender, land en genre via Radio Browser, lokale favorieten en eigen directe http(s)-streamadressen. Afspelen loopt via de gezamenlijke mediawidget. MP3, AAC en ondersteunde OGG/Opus/FLAC-streams spelen binnen Nexus. HLS en M3U/PLS-afspeellijsten worden niet aangeboden.
 
 De speler blijft actief bij paginawisseling en heeft eigen volume- en mediaknoppen. Geen automatisch afspelen bij opstarten. Catalogus- en streamfouten worden getoond; opgeslagen favorieten blijven onafhankelijk van de catalogus bereikbaar. Een zender kan zijn streamadres of beschikbaarheid wijzigen.
 
@@ -79,7 +103,7 @@ De speler blijft actief bij paginawisseling en heeft eigen volume- en mediaknopp
 
 Verplaatsbare widgets, brede/normale tegels, drie profielen en thema’s, notities, focustimer, Windows-audio/microfoonbediening, Windows-mediasessies en indeling importeren/exporteren blijven beschikbaar. De overlay werkt het best met borderless/windowed games; Nexus injecteert geen code in games.
 
-Instellingen, favorieten, notities en timer staan in %APPDATA%/nexus-hub/nexus.json, de gamecache in library.json, hoezen in covers/ en een eventueel opgehaalde MSI-SDK in rgb-sdk/. De installer behoudt deze gegevens. Een indelingsexport bevat vormgeving en webwidgetadressen, geen accounts of notities.
+Instellingen, favorieten, notities en timer staan in %APPDATA%/nexus-hub/nexus.json, de gamecache in library.json, hoezen in covers/, storepakketten en hun eigen gegevens in extensions/ en een eventueel opgehaalde MSI-SDK in rgb-sdk/. De installer behoudt deze gegevens. Een indelingsexport bevat vormgeving en webwidgetadressen, geen accounts of notities.
 
 Nexus heeft geen telemetrie, cloudbackend of luisterende netwerkserver. Externe catalogi, radiozenders en apps ontvangen de normale netwerkverzoeken die voor hun functies nodig zijn. Windows-helpers draaien onder de huidige gebruiker en stoppen met Nexus. Er wordt geen permanente Windows-service aangemaakt. Starten met Windows is optioneel.
 
@@ -97,7 +121,10 @@ Vereist Node.js 22.12+ of 24+, Windows PowerShell 5.1 en .NET Framework 4.8. C#-
 6. node scripts/update-smoke.mjs
 7. node scripts/features-smoke.mjs (NEXUS_TEST_NATIVE=1 activeert de native-appcontroles)
 8. node scripts/updater-smoke.mjs
-9. npm run dist
+9. node scripts/store-smoke.mjs
+10. npm run dist
+
+Voor de store-smoketest: clone `https://github.com/matix-codex/Nexus-Store.git` naar de lokale map `app-store/` in dit project. Dit blijft een aparte Git-repository. De test controleert downloads, geïsoleerde widgets, opslag, thema's en de geïntegreerde mediawidget.
 
 dev:web toont een browserpreview zonder verzonnen hardwaregegevens. Tests gebruiken een afzonderlijk gegevensprofiel. De featuretest is bedoeld voor de lokale pc met geïnstalleerde apps en games; radioweergave wordt op nul volume gecontroleerd. CI draait de overdraagbare unittests en bouwt de installer.
 

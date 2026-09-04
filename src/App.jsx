@@ -3,13 +3,17 @@ import { Activity, ArrowDown, ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUp, Arr
 import { api } from './api.js';
 import { HardwarePage, RGBPage, RadioPage, RadioDock, useRadio } from './Extensions.jsx';
 import { UpdateDetails, UpdateSettings } from './Updates.jsx';
+import { MediaWidget, AppWidget } from './Media.jsx';
+import { StorePage, StoreWidget, ExtensionPage, themeStyle } from './Marketplace.jsx';
 
 const profiles = { command: 'Command center', gaming: 'Gaming', focus: 'Focus' };
 const widgetInfo = {
-  radio: ['Internetradio', Radio, 'Livezenders, favorieten en je eigen audiostreams.'],
+  'app-discord': ['Discord', Headphones, 'Open servers, chats en voice in je dashboardwerkruimte.'],
+  'app-whatsapp': ['WhatsApp', MessageCircle, 'Je Windows-gesprekken en oproepen binnen Nexus.'],
+  'app-spotify': ['Spotify', Music2, 'Open je volledige Spotify-bibliotheek binnen Nexus.'],
   welcome: ['Welkom', Sparkles, 'Je startpunt, recente game en snelle acties.'],
   system: ['Systeemprestaties', Activity, 'Live CPU, GPU en geheugengebruik.'],
-  media: ['Now playing', Music2, 'Bedien je actieve Windows-mediaspeler.'],
+  media: ['Media', Music2, 'Spotify, internetradio en Windows-media in één speler.'],
   social: ['Connected spaces', MessageCircle, 'Discord, WhatsApp en Xbox binnen handbereik.'],
   library: ['Jouw games', Gamepad2, 'Start je favoriete en recent gespeelde games.'],
   audio: ['Audio control', SlidersHorizontal, 'Systeemvolume en microfoon rechtstreeks bedienen.'],
@@ -40,6 +44,7 @@ export default function App() {
   const [state, setState] = useState(null), [metrics, setMetrics] = useState({}), [history, setHistory] = useState({ cpu: [], gpu: [], ram: [], down: [], up: [] });
   const [page, setPage] = useState('dashboard'), [edit, setEdit] = useState(false), [modal, setModal] = useState(null), [toast, setToast] = useState(null), [search, setSearch] = useState(''), [serviceStatus, setServiceStatus] = useState({});
   const player = useRadio();
+  const [marketplace,setMarketplace]=useState(null),[dashboardApp,setDashboardApp]=useState(null);
   const [update, setUpdate] = useState(null); const shownUpdate = useRef(0);
   const now = useNow(); const toastTimer = useRef();
   const notify = (text, error = false) => { clearTimeout(toastTimer.current); setToast({ text, error }); toastTimer.current = setTimeout(() => setToast(null), error ? 6500 : 3500); };
@@ -47,6 +52,8 @@ export default function App() {
   useEffect(() => {
     api.bootstrap().then(data => { setState(data.state); setMetrics(data.metrics); setUpdate(data.state.updates); }).catch(error => notify(error.message, true));
     const offUpdate = api.onUpdate(setUpdate);
+    api.storeStatus().then(setMarketplace).catch(()=>{});
+    const offStore=api.onStore(setMarketplace);
     const offState = api.onState(setState);
     const offMetrics = api.onMetrics(data => {
       setMetrics(data);
@@ -54,7 +61,7 @@ export default function App() {
     });
     const offService = api.onService(data => setServiceStatus(old => ({ ...old, [data.id]: { ...old[data.id], ...data } })));
     const offShortcut = api.onShortcut(action => { if (action === 'search') setModal('search'); });
-    return () => { offState(); offMetrics(); offService(); offShortcut(); offUpdate(); clearTimeout(toastTimer.current); };
+    return () => { offState(); offMetrics(); offService(); offShortcut(); offUpdate(); offStore(); clearTimeout(toastTimer.current); };
   }, []);
   useEffect(() => {
     if (update?.prompt > shownUpdate.current && (!modal || modal === 'update')) { shownUpdate.current = update.prompt; setModal('update'); }
@@ -67,28 +74,32 @@ export default function App() {
     };
     window.addEventListener('keydown', listener); return () => window.removeEventListener('keydown', listener);
   }, []);
-  const navigate = next => { run(() => api.service('hide')); setPage(next); setSearch(''); setModal(null); setEdit(false); };
+  const navigate = next => { run(() => api.service('hide')); setDashboardApp(null); setPage(next); setSearch(''); setModal(null); setEdit(false); };
   useEffect(() => { if (state?.overlay) navigate('dashboard'); }, [state?.overlay]);
   useEffect(() => {
-    const embedded = page !== 'xbox' && (state?.services?.[page] || state?.webWidgets.some(w => w.id === page));
-    if (embedded) run(() => modal ? api.service('hide') : api.service('open', page));
+    const embedded = dashboardApp || (page !== 'xbox' && (state?.services?.[page] || state?.webWidgets.some(w => w.id === page) || marketplace?.installed.some(p=>`store:${p.id}`===page && p.content.type==='web')) && page);
+    if (embedded) run(() => modal ? api.service('hide') : api.service('open', embedded));
   }, [modal]);
   if (!state) return <div className="boot"><Brand /><span>Je command center wordt klaargezet…</span></div>;
   const { settings, library, favorites } = state;
   const layout = state.layouts[settings.profile] || [];
-  const service = state.services[page] || state.webWidgets.find(w => w.id === page);
+  const extension=marketplace?.installed.find(p=>`store:${p.id}`===page);
+  const service = state.services[page] || state.webWidgets.find(w => w.id === page) || (extension?.content.type==='web'?{name:extension.name,url:extension.content.url,color:extension.accent}:null);
   const date = new Date(now);
   const gameLaunch = game => run(() => api.launchGame(game.id), `${game.name} wordt gestart`);
   const changeSettings = value => run(() => api.settings(value));
   const updateLayout = next => run(() => api.layout(settings.profile, next));
   const moveWidget = (id, shift) => { const next = [...layout], i = next.indexOf(id), j = i + shift; if (j >= 0 && j < next.length) { [next[i], next[j]] = [next[j], next[i]]; updateLayout(next); } };
   const goService = id => { navigate(id); setServiceStatus(old => ({ ...old, [id]: { loading: true } })); };
-  const context = { player, state, update, metrics, history, now, run, notify, navigate, gameLaunch, goService, setModal, changeSettings };
-  return <div className={`app theme-${settings.theme} density-${settings.density} ${settings.reduceMotion ? 'reduce-motion' : ''} ${state.overlay ? 'is-overlay' : ''}`}>
+  const mediaPlayer={...player,play:station=>{if(metrics.media?.playing)run(()=>api.media('pause','windows'));player.play(station);changeSettings({mediaSource:'radio'});}};
+  const openAppWidget=id=>{document.querySelector('.main-content')?.scrollTo({top:0});setEdit(false);setModal(null);setDashboardApp(id);};
+  const context = { player:mediaPlayer, marketplace, updateLayout, openAppWidget, state, update, metrics, history, now, run, notify, navigate, gameLaunch, goService, setModal, changeSettings };
+  return <div style={themeStyle(marketplace,settings.storeTheme)} className={`app theme-${settings.theme} ${settings.storeTheme?'theme-store':''} density-${settings.density} ${settings.reduceMotion ? 'reduce-motion' : ''} ${state.overlay ? 'is-overlay' : ''}`}>
     <aside className="sidebar"><button className="brand-button" aria-label="Nexus dashboard" onClick={() => navigate('dashboard')}><Brand small /></button><div className="nav-main">
       <Nav icon={LayoutDashboard} label="Dashboard" active={page === 'dashboard'} onClick={() => navigate('dashboard')} />
       <Nav icon={Gamepad2} label="Gamebibliotheek" active={page === 'library'} onClick={() => navigate('library')} />
       <Nav icon={LayoutGrid} label="Apps & verbindingen" active={page === 'apps'} onClick={() => navigate('apps')} />
+      <Nav icon={Download} label="Nexus Store" active={page === 'store'} onClick={() => navigate('store')} />
       <Nav icon={Activity} label="Systeemprestaties" active={page === 'hardware'} onClick={() => navigate('hardware')} />
       <Nav icon={Sparkles} label="RGB-verlichting" active={page === 'rgb'} onClick={() => navigate('rgb')} />
       <Nav icon={Radio} label="Internetradio" active={page === 'radio'} onClick={() => navigate('radio')} />
@@ -103,9 +114,10 @@ export default function App() {
         {page === 'dashboard' && <>
           <div className="page-heading"><div><div className="eyebrow"><span className="tiny-line" /> JOUW SETUP. JOUW RUIMTE.</div><h1>Alles onder controle<span className="accent">.</span></h1><p>Je games, je mensen, je muziek. Samen op één scherm.</p></div><div className="heading-actions"><label className="profile-select"><span className="status-dot" /><select aria-label="Dashboardprofiel" value={settings.profile} onChange={e => changeSettings({ profile: e.target.value })}>{Object.entries(profiles).map(([id, text]) => <option value={id} key={id}>{text}</option>)}</select><ChevronDown size={14} /></label><button className={`button secondary ${edit ? 'selected' : ''}`} onClick={() => setEdit(!edit)}>{edit ? <Check size={16} /> : <SlidersHorizontal size={16} />}<span>{edit ? 'Klaar' : 'Aanpassen'}</span></button><button className="button primary" onClick={() => setModal('widgets')}><Plus size={16} /><span>Widget</span></button></div></div>
           {state.preview && <div className="preview-banner"><Monitor size={17} /> Vormgevingspreview · Open de desktopapp voor live hardware, games en appvensters.</div>}
+          {dashboardApp && <section className="dashboard-app-space"><div className="dashboard-app-tabs"><span>APPWERKRUIMTE</span>{['discord','whatsapp','spotify'].map(id=><button key={id} className={dashboardApp===id?'active':''} onClick={()=>setDashboardApp(id)}>{state.services[id].name}</button>)}<button aria-label="Appwerkruimte sluiten" onClick={()=>{setDashboardApp(null);run(()=>api.service('hide'));}}><X size={15}/></button></div><div className="dashboard-app-content"><NativeServicePage key={dashboardApp} id={dashboardApp} definition={state.services[dashboardApp]} status={serviceStatus[dashboardApp]} {...context}/></div></section>}
           {edit && <div className="edit-banner"><Grip size={17} /><span>Sleep widgets naar een nieuwe plek. Gebruik de pijlen op een touchscreen.</span><button onClick={() => setModal('widgets')}>Widgets beheren <ArrowRight size={14} /></button></div>}
           <div className={`dashboard-grid ${edit ? 'editing' : ''}`}>{layout.map((id, index) => {
-            const title = widgetInfo[id]?.[0] || state.webWidgets.find(w => w.id === id)?.name || 'Widget';
+            const title = widgetInfo[id]?.[0] || state.webWidgets.find(w => w.id === id)?.name || marketplace?.installed.find(p=>`store:${p.id}`===id)?.name || 'Widget';
             const wide = state.sizes[id] === 'wide' || (state.sizes[id] !== 'normal' && ['welcome', 'system', 'library'].includes(id));
             return <section key={id} className={`widget widget-${id.startsWith('web-') ? 'web' : id} ${wide ? 'span-2' : ''}`} draggable={edit} onDragStart={e => { e.dataTransfer.setData('text/nexus-widget', id); e.dataTransfer.effectAllowed = 'move'; }} onDragOver={e => { if (edit) e.preventDefault(); }} onDrop={e => { e.preventDefault(); const source = e.dataTransfer.getData('text/nexus-widget'); if (!layout.includes(source) || source === id) return; const next = layout.filter(w => w !== source); next.splice(next.indexOf(id), 0, source); updateLayout(next); }}>
               {edit && <div className="widget-edit"><span><Grip size={14} />{title}</span><div><IconButton icon={ChevronLeft} label={`${title} naar links`} disabled={index === 0} onClick={() => moveWidget(id, -1)} /><IconButton icon={ChevronRight} label={`${title} naar rechts`} disabled={index === layout.length - 1} onClick={() => moveWidget(id, 1)} /><IconButton icon={Expand} label={`Breedte van ${title} wijzigen`} onClick={() => run(() => api.layout(settings.profile, layout, { [id]: wide ? 'normal' : 'wide' }))} /><IconButton icon={X} label={`${title} verbergen`} onClick={() => updateLayout(layout.filter(w => w !== id))} /></div></div>}
@@ -116,15 +128,16 @@ export default function App() {
         </>}
         {page === 'library' && <Library {...context} search={search} setSearch={setSearch} />}
         {page === 'apps' && <Apps {...context} />}
+        {page === 'store' && <StorePage {...context} />}
+        {extension?.content.type==='sandbox' && <ExtensionPage extension={extension} />}
         {page === 'hardware' && <HardwarePage {...context} />}
         {page === 'rgb' && <RGBPage {...context} />}
-        {page === 'radio' && <RadioPage {...context} player={player} />}
+        {page === 'radio' && <RadioPage {...context} />}
         {page === 'settings' && <Settings {...context} />}
         {service && (service.native ? <NativeServicePage key={page} id={page} definition={service} status={serviceStatus[page]} {...context} /> : <ServicePage key={page} id={page} definition={service} status={serviceStatus[page]} {...context} />)}
       </main>
       <footer className="statusbar"><span><i className={`status-dot ${metrics.nativeReady ? '' : 'neutral'}`} />{state.preview ? 'Browserpreview' : metrics.nativeReady ? 'Windows bridge online' : 'Windows verbinden…'}<span className="footer-separator">/</span>{profiles[settings.profile]}</span><span className="footer-center">{library.scanning ? <><RefreshCw size={11} className="spin" /> Games zoeken…</> : `${library.games.length} games in je bibliotheek`}</span><span><Monitor size={12} />{state.overlay ? 'Overlay' : state.displayTarget?.label || state.displays.find(d => d.id === settings.displayId)?.label || 'Desktop'}<span className="footer-separator">/</span>{date.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span></footer>
     </div>
-    {!service && <RadioDock player={player} onOpen={() => navigate('radio')} />}
     {toast && <div className={`toast ${toast.error ? 'error' : ''}`} role="status">{toast.error ? <Bell size={18} /> : <Check size={18} />}<span>{toast.text}</span><button aria-label="Melding sluiten" onClick={() => setToast(null)}><X size={16} /></button></div>}
     {modal && <Modal title={modal === 'update' ? 'Een frisse versie van Nexus' : modal === 'widgets' ? 'Maak ruimte voor wat telt' : modal === 'add-game' ? 'Voeg een game toe' : 'Zoek in je command center'} onClose={() => setModal(null)} wide={modal === 'widgets'}>
       {modal === 'update' && <UpdateDetails update={update} run={run} onLater={() => setModal(null)} />}
@@ -141,22 +154,20 @@ function Empty({ icon: Icon, title, text, action, onClick, compact = false }) { 
 function Widget({ id, ...ctx }) {
   const { state, metrics, history, now, run, navigate, goService, gameLaunch, setModal } = ctx;
   const { library, settings, favorites } = state;
+  if (id.startsWith('app-') && state.services[id.slice(4)]) return <AppWidget id={id.slice(4)} {...ctx}/>;
+  if (id.startsWith('store:')) {const extension=ctx.marketplace?.installed.find(p=>`store:${p.id}`===id);return extension?<StoreWidget extension={extension} navigate={navigate}/>:null;}
   if (id === 'welcome') {
     const hour = new Date(now).getHours(); const greeting = hour < 12 ? 'Goedemorgen' : hour < 18 ? 'Goedemiddag' : 'Goedenavond';
     const recent = library.games.find(g => g.id === state.recent[0]?.id);
     return <div className="welcome-body"><div className="welcome-orbit"><div /><div /><div /><span className="orbital-dot" /></div><div className="welcome-content"><span className="pill subtle"><span className="status-dot" /> ALL SYSTEMS, ONE SPACE</span><h2>{greeting}{settings.username ? `, ${settings.username}` : ''}<span className="accent">.</span></h2><p>Even opladen. Dan weer door.</p><div className="welcome-actions"><button className="button primary" onClick={() => recent ? gameLaunch(recent) : navigate('library')}><Play size={14} fill="currentColor" />{recent ? 'Verder spelen' : 'Open je bibliotheek'}</button><button className="button ghost" onClick={() => run(() => api.window('overlay'))}>Overlay<ArrowUpRight size={15} /></button></div>{recent && <div className="last-played">LAATST GESTART <span>{recent.name}</span></div>}</div><span className="welcome-watermark">N</span></div>;
   }
   if (id === 'system') return <><WidgetHeader icon={Activity} title="Systeemprestaties"><span className="live-label"><i />LIVE</span></WidgetHeader><div className="system-metrics"><Metric name="CPU" value={fmt(metrics.cpu)} unit="%" subtitle={metrics.cpuName?.replace(/\(R\)|\(TM\)|CPU|Processor|\d+-Core/gi, '').trim() || 'Wachten op Windows'} data={history.cpu} color="var(--accent)" /><Metric name="GPU" value={fmt(metrics.gpu?.usage)} unit="%" subtitle={metrics.gpu?.name || 'Grafische processor'} data={history.gpu} color="#a797ec" detail={metrics.gpu?.temperature != null ? `${metrics.gpu.temperature}°C` : 'Sensor niet beschikbaar'} /><Metric name="RAM" value={metrics.ramTotal ? fmt(metrics.ramUsed / metrics.ramTotal * 100) : '—'} unit="%" subtitle={`${gb(metrics.ramUsed)} / ${gb(metrics.ramTotal)} GB`} data={history.ram} color="#74b7e3" /></div><div className="system-bottom"><span><Cpu size={12} />{metrics.cores ? `${metrics.cores} logische cores` : 'Native monitoring'}</span><button className="system-sensors-link" onClick={() => navigate('hardware')}>{metrics.gpu?.temperature != null ? `${metrics.gpu.temperature}°C · ` : ''}Alle sensoren<ArrowRight size={12} /></button></div></>;
-  if (id === 'media') {
-    const media = metrics.media;
-    return <><WidgetHeader icon={Music2} title="Now playing"><button className="service-link" title="Spotify openen" onClick={() => goService('spotify')}><Music2 size={14} />Spotify<ArrowUpRight size={12} /></button></WidgetHeader><div className={`album-art ${media?.playing ? 'playing' : ''}`}><div className="album-grid" /><div className="vinyl"><div className="vinyl-center"><Waves size={25} /></div></div><span className="album-caption">NEXUS FREQUENCIES</span><span className="album-tag">{media?.source?.toLowerCase().includes('spotify') ? 'SPOTIFY' : 'WINDOWS MEDIA'}</span></div><div className="track-info"><div><h3 title={media?.title}>{media?.title || 'Jouw soundtrack begint hier'}</h3><p>{media?.artist || 'Open Spotify en speel iets af'}</p></div>{media?.playing && <div className="equalizer"><i /><i /><i /><i /></div>}</div><div className="track-progress"><div style={{ width: `${media?.duration ? Math.min(100, media.position / media.duration * 100) : 0}%` }} /></div><div className="track-times"><span>{mmss(media?.position || 0)}</span><span>{mmss(media?.duration || 0)}</span></div><div className="media-controls"><IconButton icon={SkipBack} label="Vorige track" disabled={!media?.canPrevious} onClick={() => run(() => api.media('previous'))} /><IconButton icon={media?.playing ? Pause : Play} label={media?.playing ? 'Pauzeren' : 'Afspelen'} className="play-button" disabled={!media?.canPlay} onClick={() => run(() => api.media('toggle'))} /><IconButton icon={SkipForward} label="Volgende track" disabled={!media?.canNext} onClick={() => run(() => api.media('next'))} /></div></>;
-  }
+  if (id === 'media') return <MediaWidget {...ctx}/>;
   if (id === 'social') return <><WidgetHeader icon={MessageCircle} title="Connected spaces"><span className="caption">JOUW APPS</span></WidgetHeader><div className="social-list">{['discord', 'whatsapp', 'xbox'].map(key => { const s = state.services[key]; return <button key={key} className="social-row" onClick={() => goService(key)}><AppMark id={key} color={s.color} /><span><strong>{s.name}</strong><small>{key === 'discord' ? 'Je servers, chats en voice' : key === 'whatsapp' ? 'Je gesprekken, dichtbij' : 'Cloud gaming & je Xbox-account'}</small></span><ArrowUpRight size={16} /></button>; })}</div><div className="social-note"><ShieldCheck size={13} /><span>Je eigen accounts. Veilig gescheiden.</span></div></>;
   if (id === 'library') {
     const picked = [...library.games].sort((a, b) => Number(favorites.includes(b.id)) - Number(favorites.includes(a.id)) || (state.recent.findIndex(r => r.id === a.id) === -1 ? 999 : state.recent.findIndex(r => r.id === a.id)) - (state.recent.findIndex(r => r.id === b.id) === -1 ? 999 : state.recent.findIndex(r => r.id === b.id))).slice(0, 4);
     return <><WidgetHeader icon={Gamepad2} title="Klaar voor de volgende sessie"><button className="text-link" onClick={() => navigate('library')}>Alle games <ArrowRight size={14} /></button></WidgetHeader>{picked.length ? <div className="mini-games">{picked.map(g => <GameCard key={g.id} game={g} favorite={favorites.includes(g.id)} artwork={settings.artwork} onPlay={() => gameLaunch(g)} onFavorite={() => run(() => api.favorite(g.id))} small />)}</div> : <Empty compact icon={Gamepad2} title={library.scanning ? 'Je games verzamelen…' : 'Een plek voor al je games'} text={library.scanning ? 'Steam, Xbox, Epic en je andere installaties worden doorzocht.' : 'Scan je pc of voeg een game toe om te beginnen.'} action={library.scanning ? null : 'Bibliotheek openen'} onClick={() => navigate('library')} />}</>;
   }
-  if (id === 'radio') return <><WidgetHeader icon={Radio} title="Internetradio"><button className="text-link" onClick={() => navigate('radio')}>Zenders<ArrowRight size={14} /></button></WidgetHeader><div className="radio-widget-body"><Radio size={35} /><h3>{ctx.player.current?.name || 'Vind je frequentie'}</h3><p>{ctx.player.playing ? 'Live radio speelt' : 'Je favoriete stations binnen handbereik'}</p><button className="button secondary" onClick={() => ctx.player.current ? ctx.player.toggle() : navigate('radio')}>{ctx.player.playing ? 'Pauzeren' : 'Luisteren'}</button></div></>;
   if (id === 'audio') return <AudioWidget {...ctx} />;
   if (id === 'network') {
     const [down, downUnit] = speed(metrics.network?.download), [up, upUnit] = speed(metrics.network?.upload);
@@ -252,9 +263,9 @@ function Modal({ title, onClose, children, wide }) {
   useEffect(() => { const before = document.activeElement; const focusable = () => [...(ref.current?.querySelectorAll('button:not([disabled]), input, select, textarea, [tabindex="0"]') || [])]; focusable()[0]?.focus(); const trap = e => { if (e.key !== 'Tab') return; const nodes = focusable(), first = nodes[0], last = nodes.at(-1); if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } }; ref.current?.addEventListener('keydown', trap); return () => { ref.current?.removeEventListener('keydown', trap); before?.focus(); }; }, []);
   return <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}><div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}><div className="modal-heading"><div><span className="eyebrow">NEXUS WORKSPACE</span><h2>{title}</h2></div><IconButton icon={X} label="Venster sluiten" onClick={onClose} /></div><div className="modal-content">{children}</div></div></div>;
 }
-function WidgetPicker({ state, layout, updateLayout, run }) {
+function WidgetPicker({ state, marketplace, navigate, layout, updateLayout, run }) {
   const [webName, setWebName] = useState(''), [webUrl, setWebUrl] = useState('');
-  return <><p className="modal-description">Kies wat je wilt zien in je {profiles[state.settings.profile]}-dashboard. Je kunt alles later verplaatsen.</p><div className="widget-catalog">{Object.entries(widgetInfo).map(([id, [name, Icon, description]]) => <button key={id} className={layout.includes(id) ? 'added' : ''} onClick={() => updateLayout(layout.includes(id) ? layout.filter(w => w !== id) : [...layout, id])}><div><span className="catalog-icon"><Icon size={22} strokeWidth={1.4} /></span><span className="catalog-check">{layout.includes(id) ? <Check size={15} /> : <Plus size={15} />}</span></div><strong>{name}</strong><p>{description}</p></button>)}</div><div className="web-widget-form"><div className="section-title"><Globe size={19} /><div><h3>Voeg je eigen webwidget toe</h3><p>Bijvoorbeeld een dashboard, agenda of je favoriete website.</p></div></div><form onSubmit={e => { e.preventDefault(); run(() => api.webWidget({ name: webName, url: webUrl })).then(result => { if (result) { setWebName(''); setWebUrl(''); } }); }}><input className="text-input" aria-label="Naam van webwidget" placeholder="Naam van je widget" value={webName} onChange={e => setWebName(e.target.value)} required maxLength={50} /><input className="text-input" type="url" aria-label="Website van webwidget" placeholder="https://…" value={webUrl} onChange={e => setWebUrl(e.target.value)} required pattern="https://.*" /><button className="button primary" type="submit"><Plus size={16} />Toevoegen</button></form>{state.webWidgets.map(w => <div className="custom-widget-row" key={w.id}><Globe size={16} /><span><strong>{w.name}</strong><small>{new URL(w.url).hostname}</small></span><button className="button ghost" onClick={() => updateLayout(layout.includes(w.id) ? layout.filter(id => id !== w.id) : [...layout, w.id])}>{layout.includes(w.id) ? 'Verbergen' : 'Toevoegen'}</button><IconButton icon={Trash2} label={`${w.name} verwijderen`} onClick={() => run(() => api.removeWebWidget(w.id))} /></div>)}</div></>;
+  return <><p className="modal-description">Kies wat je wilt zien in je {profiles[state.settings.profile]}-dashboard. Je kunt alles later verplaatsen.</p><div className="widget-catalog">{Object.entries(widgetInfo).map(([id, [name, Icon, description]]) => <button key={id} className={layout.includes(id) ? 'added' : ''} onClick={() => updateLayout(layout.includes(id) ? layout.filter(w => w !== id) : [...layout, id])}><div><span className="catalog-icon"><Icon size={22} strokeWidth={1.4} /></span><span className="catalog-check">{layout.includes(id) ? <Check size={15} /> : <Plus size={15} />}</span></div><strong>{name}</strong><p>{description}</p></button>)}</div><div className="store-widget-picker"><p>Meer widgets en toepassingen uit de Nexus Store.<br/>Geïnstalleerde pakketten krijgen hun eigen updates.</p><button className="button secondary" onClick={() => navigate('store')}>Nexus Store<ArrowUpRight size={15}/></button></div><div className="widget-catalog">{marketplace?.installed.filter(p=>p.kind!=='theme').map(p=><button key={p.id} className={layout.includes(`store:${p.id}`)?'added':''} onClick={()=>updateLayout(layout.includes(`store:${p.id}`)?layout.filter(id=>id!==`store:${p.id}`):[...layout,`store:${p.id}`])}><div><span className="catalog-icon"><LayoutGrid size={22}/></span><span className="catalog-check">{layout.includes(`store:${p.id}`)?<Check size={15}/>:<Plus size={15}/>}</span></div><strong>{p.name}</strong><p>{p.description}</p></button>)}</div><div className="web-widget-form"><div className="section-title"><Globe size={19} /><div><h3>Voeg je eigen webwidget toe</h3><p>Bijvoorbeeld een dashboard, agenda of je favoriete website.</p></div></div><form onSubmit={e => { e.preventDefault(); run(() => api.webWidget({ name: webName, url: webUrl })).then(result => { if (result) { setWebName(''); setWebUrl(''); } }); }}><input className="text-input" aria-label="Naam van webwidget" placeholder="Naam van je widget" value={webName} onChange={e => setWebName(e.target.value)} required maxLength={50} /><input className="text-input" type="url" aria-label="Website van webwidget" placeholder="https://…" value={webUrl} onChange={e => setWebUrl(e.target.value)} required pattern="https://.*" /><button className="button primary" type="submit"><Plus size={16} />Toevoegen</button></form>{state.webWidgets.map(w => <div className="custom-widget-row" key={w.id}><Globe size={16} /><span><strong>{w.name}</strong><small>{new URL(w.url).hostname}</small></span><button className="button ghost" onClick={() => updateLayout(layout.includes(w.id) ? layout.filter(id => id !== w.id) : [...layout, w.id])}>{layout.includes(w.id) ? 'Verbergen' : 'Toevoegen'}</button><IconButton icon={Trash2} label={`${w.name} verwijderen`} onClick={() => run(() => api.removeWebWidget(w.id))} /></div>)}</div></>;
 }
 function AddGame({ state, run, setModal, notify }) {
   const [query, setQuery] = useState('');

@@ -8,9 +8,9 @@ export const LAUNCHERS = {
   Steam: 'steam://open/main', Epic: 'com.epicgames.launcher://ue/library', Xbox: 'xbox:',
   Rockstar: 'rockstargames://', Ubisoft: 'uplay://', EA: 'origin2://', GOG: 'goggalaxy://', 'Battle.net': 'battlenet://',
 };
-export const WIDGETS = ['welcome', 'system', 'media', 'social', 'library', 'audio', 'network', 'clock', 'notes', 'timer', 'launchers', 'radio'];
+export const WIDGETS = ['welcome', 'system', 'media', 'social', 'library', 'audio', 'network', 'clock', 'notes', 'timer', 'launchers', 'app-discord', 'app-whatsapp', 'app-spotify'];
 export const DEFAULTS = {
-  settings: { displayId: null, displayIdentity: null, fullscreen: false, alwaysOnTop: false, autostart: false, theme: 'mint', density: 'comfortable', profile: 'command', username: '', artwork: true, reduceMotion: false, checkUpdates: true },
+  settings: { displayId: null, displayIdentity: null, fullscreen: false, alwaysOnTop: false, autostart: false, theme: 'mint', density: 'comfortable', profile: 'command', username: '', artwork: true, reduceMotion: false, checkUpdates: true, mediaSource:'auto', storeTheme:null },
   layouts: {
     command: ['welcome', 'system', 'media', 'social', 'library', 'audio', 'network', 'clock', 'launchers'],
     gaming: ['welcome', 'system', 'media', 'audio', 'library', 'launchers', 'social', 'network'],
@@ -29,6 +29,7 @@ export function validateSettings(input) {
   if (['mint', 'violet', 'amber'].includes(input.theme)) result.theme = input.theme;
   if (['comfortable', 'compact'].includes(input.density)) result.density = input.density;
   if (['command', 'gaming', 'focus'].includes(input.profile)) result.profile = input.profile;
+  if (['auto','spotify','radio','windows'].includes(input.mediaSource)) result.mediaSource=input.mediaSource;
   if (typeof input.username === 'string') result.username = input.username.trim().slice(0, 36);
   if (Number.isInteger(input.displayId) || input.displayId === null) result.displayId = input.displayId;
   return result;

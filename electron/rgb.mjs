@@ -5,6 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
+import { effectOptions, effectFrame } from './rgb-effects.mjs';
 export function rgbColor(value) {
   if (!/^#[a-f0-9]{6}$/i.test(value?.color) || !Number.isFinite(value.brightness) || value.brightness < 0 || value.brightness > 100 || !Array.isArray(value.ids) || !value.ids.length || value.ids.length > 256 || value.ids.some(id => typeof id !== 'string')) throw new Error('Kies apparaten, een kleur en een helderheid tussen 0 en 100.');
   return [1, 3, 5].map(index => Math.round(parseInt(value.color.slice(index, index + 2), 16) * value.brightness / 100));
@@ -33,7 +34,9 @@ export class RGB {
     if (!bridge.child || bridge.stopped) { bridge.stopped = false; bridge.start(); }
     return deadline(new Promise(resolve => bridge.once('ready', resolve)), 15000);
   }
-  async status() {
+  async status(force = false) {
+    if (force) await this.stopEffect();
+    if (this.effect?.running && this.lastStatus) return {...this.lastStatus,effect:this.effect};
     if (this.busy) throw new Error('RGB wordt al bijgewerkt.'); this.busy = true;
     try {
       const responses = await Promise.all(Object.entries(this.bridges).map(async ([id, bridge]) => {
@@ -55,29 +58,39 @@ export class RGB {
         openProvider = { id: 'openrgb', name: 'GIGABYTE / OpenRGB', available: true, detail: `${this.openDevices.size} apparaten via lokale SDK-server. Gebruik per apparaat één RGB-controller.` };
       } catch { client.socket?.destroy(); this.client = null; openProvider = { id: 'openrgb', name: 'GIGABYTE / OpenRGB', available: false, detail: 'Start OpenRGB en zet SDK Server aan op 127.0.0.1:6742. Ondersteunde GIGABYTE-, MSI- en Corsair-apparaten verschijnen hier.' }; }
       this.devices = [...native.devices, ...[...this.openDevices].map(([id, device]) => ({ id, name: device.name, provider: device.vendor || 'OpenRGB', leds: device.colors.length }))];
-      return { devices: this.devices, providers: [...native.providers, openProvider] };
+      this.lastStatus={ devices: this.devices, providers: [...native.providers, openProvider] };return {...this.lastStatus,effect:this.effect || null};
     } finally { this.busy = false; }
   }
   async apply(value) {
-    const [r, g, b] = rgbColor(value);
+    value=effectOptions(value);await this.stopEffect();
     if (this.busy) throw new Error('RGB wordt al bijgewerkt.');
     if (value.ids.some(id => !this.devices.some(device => device.id === id))) throw new Error('Apparaten zijn veranderd. Zoek ze opnieuw.');
-    this.busy = true; const results = [];
-    try {
-      for (const id of [...new Set(value.ids)]) {
+    this.effect={...value,running:value.effect!=='solid',error:null,results:[]};
+    const generation=this.effectGeneration; const start=Date.now();
+    const render=async()=>{
+      this.busy=true;const results=[];
+      try {for (const [index,id] of value.ids.entries()) {
         try {
+          const deviceInfo=this.devices.find(d=>d.id===id);const colors=effectFrame(value,deviceInfo?.leds || 1,Date.now()-start,index);
           if (id.startsWith('openrgb:')) {
             const device = this.openDevices.get(id); if (!this.client || !device) throw new Error('OpenRGB is niet verbonden.');
             const mode = device.modes.find(mode => /^direct$/i.test(mode.name));
-            await deadline(this.client.updateMode(device.index, mode.name));
-            await deadline(this.client.updateLeds(device.index, Array.from({ length: device.colors.length }, () => ({ red: r, green: g, blue: b }))));
+            if(!this.effect.configured?.includes(id))await deadline(this.client.updateMode(device.index, mode.name));
+            await deadline(this.client.updateLeds(device.index, colors.map(([red,green,blue])=>({red,green,blue}))));
             results.push({ id, ok: true, detail: 'Naar OpenRGB verstuurd' });
-          } else { await this.bridges[id.split(':')[0]].request('apply', { id, r, g, b }); results.push({ id, ok: true, detail: 'Door SDK bevestigd' }); }
+          } else { await this.bridges[id.split(':')[0]].request('frame', { id, colors:colors.flat() }); results.push({ id, ok: true, detail: value.effect==='solid'?'Kleur toegepast':`${value.effect} actief` }); }
         } catch (error) { results.push({ id, ok: false, detail: error.message }); }
-      }
+      }} finally {this.busy=false;}
+      if(this.effectGeneration===generation){this.effect.results=results;this.effect.configured=results.filter(r=>r.ok).map(r=>r.id);if(results.some(r=>!r.ok)){this.effect.running=false;this.effect.error='Schema gestopt: een apparaat reageert niet. Zoek apparaten opnieuw.';}}
       return results;
-    } finally { this.busy = false; }
+    };
+    this.frame=render();const result=await this.frame;
+    const tick=async()=>{if(this.effectGeneration!==generation || !this.effect.running)return;this.frame=render();await this.frame;if(this.effectGeneration===generation && this.effect.running)this.effectTimer=setTimeout(tick,125);};
+    if(this.effect.running)this.effectTimer=setTimeout(tick,125);
+    return result;
   }
+  async stopEffect(){this.effectGeneration=(this.effectGeneration || 0)+1;clearTimeout(this.effectTimer);if(this.effect)this.effect.running=false;await this.frame?.catch(()=>{});return this.effect;}
+  effectStatus(){return this.effect || null;}
   async open(id) {
     if (id === 'openrgb') return shell.openExternal('https://openrgb.org/');
     if (id === 'msi') return new Promise((resolve, reject) => { const child = spawn(path.join(process.env.SystemRoot, 'explorer.exe'), ['shell:AppsFolder\\9426MICRO-STARINTERNATION.MSICenter_kzh8wxbdkxb8p!App'], { detached: true, stdio: 'ignore', windowsHide: true }); child.once('error', reject); child.once('spawn', () => { child.unref(); resolve(); }); });
@@ -86,5 +99,5 @@ export class RGB {
     if (!file) throw new Error('Onbekende RGB-app.'); await fs.access(file);
     const error = await shell.openPath(file); if (error) throw new Error(error);
   }
-  stop() { Object.values(this.bridges).forEach(bridge => bridge.stop()); this.client?.socket?.destroy(); }
+  stop() {this.effectGeneration=(this.effectGeneration || 0)+1;clearTimeout(this.effectTimer);if(this.effect)this.effect.running=false; Object.values(this.bridges).forEach(bridge => bridge.stop()); this.client?.socket?.destroy(); }
 }

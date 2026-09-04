@@ -31,10 +31,11 @@ public static class RgbSdk {
   static CueChanged callback = delegate(IntPtr context, IntPtr data) { if (data != IntPtr.Zero) cueState = Marshal.ReadInt32(data); };
   static readonly Dictionary<string, string> deviceIds = new Dictionary<string, string>();
   static readonly Dictionary<string, string> styles = new Dictionary<string, string>();
+  static readonly Dictionary<string, LedPosition[]> positionCache = new Dictionary<string, LedPosition[]>();
   static IntPtr Find(string[] paths) { foreach (string file in paths) if (File.Exists(file)) { IntPtr dll = LoadLibraryEx(file, IntPtr.Zero, 0x1100); if (dll != IntPtr.Zero) return dll; } return IntPtr.Zero; }
   static void Check(int result, string source) { if (result != 0) throw new Exception(source + " SDK-code " + result + ". Controleer of de fabrikantapp draait en software-integraties zijn toegestaan."); }
   public static object Status(string provider, string sdkPath) {
-    deviceIds.Clear(); styles.Clear(); var devices = new List<object>(); var providers = new List<object>();
+    deviceIds.Clear(); styles.Clear(); positionCache.Clear(); var devices = new List<object>(); var providers = new List<object>();
     string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles); string x86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
     if (provider == "msi") try {
       if (msi == IntPtr.Zero) msi = Find(new string[] { sdkPath, Path.Combine(pf, @"Corsair\Corsair iCUE5 Software\plugins\MSI\MysticLight_SDK_x64.dll"), Path.Combine(x86, @"MSI\MSI Center\Mystic Light\MysticLight_SDK_x64.dll"), Path.Combine(pf, @"MSI\MSI Center\Mystic Light\MysticLight_SDK_x64.dll") });
@@ -78,4 +79,18 @@ public static class RgbSdk {
     }
   }
   public static void Stop() { try { if (msiReady) Function<Simple>(msi, "MLAPI_Release")(); } catch {} try { if (cueStarted) Function<Simple>(cue, "CorsairDisconnect")(); } catch {} }
+  public static void Frame(string key, int[] rgb) {
+    if (rgb == null || rgb.Length<3 || rgb.Length%3!=0 || rgb.Length>12288) throw new Exception("Ongeldig lichtframe.");
+    foreach(int value in rgb) if(value<0 || value>255)throw new Exception("Ongeldige kleur.");
+    if(key.StartsWith("msi:")){Apply(key,rgb[0],rgb[1],rgb[2]);return;}
+    string id;if(!deviceIds.TryGetValue(key,out id))throw new Exception("Zoek RGB-apparaten opnieuw.");
+    LedPosition[] positions;
+    if(!positionCache.TryGetValue(key,out positions)){
+      LedPosition[] buffer=new LedPosition[512];int count;Check(Function<CuePositions>(cue,"CorsairGetLedPositions")(id,buffer.Length,buffer,out count),"iCUE");
+      positions=new LedPosition[Math.Min(count,buffer.Length)];Array.Copy(buffer,positions,positions.Length);positionCache[key]=positions;
+    }
+    LedColor[] colors=new LedColor[positions.Length];
+    for(int i=0;i<colors.Length;i++){int index=(i%(rgb.Length/3))*3;colors[i]=new LedColor{id=positions[i].id,r=(byte)rgb[index],g=(byte)rgb[index+1],b=(byte)rgb[index+2],a=255};}
+    Check(Function<CueColors>(cue,"CorsairSetLedColors")(id,colors.Length,colors),"iCUE");
+  }
 }
