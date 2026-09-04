@@ -1,0 +1,14 @@
+node_modules/
+dist/
+release/
+.test-data/
+artifacts/
+*.log
+.build/
+native/webview2/
+*.lnk
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
