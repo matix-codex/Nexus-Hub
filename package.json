@@ -1,6 +1,6 @@
 {
   "name": "nexus-hub",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Your second screen. Your command center.",
   "author": "Nexus Hub",
@@ -53,9 +53,18 @@
       "createDesktopShortcut": true,
       "shortcutName": "Nexus Hub"
     },
-    "artifactName": "Nexus-Hub-Setup-${version}.${ext}"
+    "artifactName": "Nexus-Hub-Setup-${version}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "matix-codex",
+        "repo": "Nexus-Hub",
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
+    "electron-updater": "6.8.9",
     "lucide-react": "^1.40.0",
     "openrgb-sdk": "0.6.0",
     "react": "^19.2.8",

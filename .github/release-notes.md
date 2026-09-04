@@ -1,16 +1,15 @@
-Nexus Hub 1.1.0 voor Windows 10/11 x64.
+Nexus Hub 1.2.0 voor Windows 10/11 x64.
 
-Download **Nexus-Hub-Setup-1.1.0.exe** bij Assets en voer de installer uit. Bestaande Nexus-instellingen blijven behouden.
+Download **Nexus-Hub-Setup-1.2.0.exe** bij Assets en voer de installer uit. Bestaande instellingen, notities, games en de gekozen monitor blijven behouden.
 
-- Gamehoezen standaard zichtbaar, lokale Steam-cache, automatische titelherkenning en eigen afbeeldingen.
-- Hardwarepagina met meerdere GPU’s, NVIDIA-temperatuur/vermogen/fans/klokken/VRAM, Windows GPU-engines, RAM, opslag en extra WMI-sensoren.
-- WhatsApp, Discord en Spotify gebruiken hun echte geïnstalleerde Windows-app. Nexus beheert de vensters op het gekozen scherm en zet ze bij afsluiten terug.
-- Centrale RGB-pagina met MSI Mystic Light- en iCUE-SDK-adapters en een lokale OpenRGB-koppeling voor ondersteunde GIGABYTE-apparaten. Kleur, helderheid en uitschakelen per selectie.
-- Internetradio met zoeken, landen/genres, favorieten, eigen streams, radiowidget en doorlopende weergave.
-- Systeemvakbediening en vaste schermkeuze blijven behouden. WebView2 hoeft niet meer te worden geïnstalleerd.
+- Automatische controle op nieuwe stabiele GitHub-releases bij opstarten en elke zes uur.
+- Een melding in Nexus met **Update downloaden**, voortgang en **Installeren en herstarten**. Met **Later** bepaal je zelf het moment; gewoon afsluiten installeert niets.
+- Handmatige controle en een schakelaar voor automatische controles onder **Instellingen → Nexus-updates**. Updates zijn ook bereikbaar via het systeemvak.
+- Downloadcontrole met SHA-512 en bestandsgrootte, opnieuw gecontroleerd vóór installatie. Duidelijke foutmeldingen en opnieuw proberen bij verbindingsproblemen.
+- Beheerde Windows-appvensters worden teruggezet voordat Nexus voor de update afsluit.
 
-RGB vereist compatibele hardware en fabrikantsoftware. Op de testpc verbindt iCUE; de MSI-SDK reageert niet en OpenRGB is niet actief. Nexus toont dat in de verbindingsstatus. Extra CPU-/moederbordsensoren vereisen een beschikbare sensorbron, zoals LibreHardwareMonitor met WMI.
+**Gebruikers van 1.1.0 en ouder moeten deze installer één keer handmatig uitvoeren. Vanaf 1.2.0 worden toekomstige versies in Nexus aangeboden.**
 
-Lokaal getest: gamehoezen, GPU-metingen, daadwerkelijke radio-audioweergave, native vensterbeheer voor de drie apps en schermherstel. Er zijn geen chats verstuurd of accounts gewijzigd. De Windows-apps behouden hun eigen interface en proces.
+De gamehoezen, hardwaremetingen, RGB-koppelingen, native Windows-apps, internetradio en vaste schermkeuze uit 1.1.0 blijven beschikbaar.
 
-Deze build heeft geen uitgeverscertificaat. **SHA256-1.1.0.txt** bevat de checksum van de installer.
+Deze build heeft geen uitgeverscertificaat. **SHA256-1.2.0.txt** bevat de checksum van de installer. **latest.yml** en **.exe.blockmap** zijn voor de automatische updater; gebruikers hoeven alleen het .exe-bestand te downloaden.

@@ -13,6 +13,8 @@ import { Artwork } from './artwork.mjs';
 import { Hardware } from './hardware.mjs';
 import { RadioDirectory, station } from './radio.mjs';
 import { RGB } from './rgb.mjs';
+import electronUpdater from 'electron-updater';
+import { Updates } from './updates.mjs';
 protocol.registerSchemesAsPrivileged([{ scheme: 'nexus-cover', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +27,7 @@ if (!hasLock) app.quit();
 let win, tray, store, native, quit = false, scanning = false, library = { games: [], startApps: [], warnings: [], scannedAt: null };
 let activeService = null, overlay = false, metrics = {}, networkSample = null;
 let dashboardWanted = true, positioning = false, repositionTimer;
-let desktop, artwork, hardware, rgb; let nativeApps = {}; let nativeOpening = null; let serviceGeneration = 0; let stopping = false;
+let desktop, artwork, hardware, rgb, updates; let nativeApps = {}; let nativeOpening = null; let serviceGeneration = 0; let stopping = false;
 const radio = new RadioDirectory();
 const appPopups = new Map();
 const views = new Map();
@@ -35,7 +37,7 @@ const nativeDirectory = app.isPackaged ? path.join(process.resourcesPath, 'nativ
 const displays = () => screen.getAllDisplays().map((d, index) => ({ id: d.id, label: d.label || `Scherm ${index + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id }));
 const allGames = () => [...library.games, ...store.data.customGames].map(game => artwork ? artwork.forGame(game) : game);
 const selectedDisplay = () => resolveDisplay(screen.getAllDisplays(), store.data.settings);
-const state = () => ({ ...store.data, library: { ...library, games: allGames(), scanning }, displays: displays(), displayTarget: { available: Boolean(selectedDisplay()), activeId: selectedDisplay()?.id ?? null, label: store.data.settings.displayIdentity?.label || 'Gekozen scherm' }, fullscreen: win?.isFullScreen() || false, overlay, services: SERVICES, launchers: LAUNCHERS, nativeApps, version: app.getVersion(), nativeReady: native?.ready || false });
+const state = () => ({ ...store.data, updates: updates?.snapshot(), library: { ...library, games: allGames(), scanning }, displays: displays(), displayTarget: { available: Boolean(selectedDisplay()), activeId: selectedDisplay()?.id ?? null, label: store.data.settings.displayIdentity?.label || 'Gekozen scherm' }, fullscreen: win?.isFullScreen() || false, overlay, services: SERVICES, launchers: LAUNCHERS, nativeApps, version: app.getVersion(), nativeReady: native?.ready || false });
 const broadcast = () => { if (win && !win.isDestroyed()) win.webContents.send('state', state()); updateTray(); };
 const save = () => { store.save(); broadcast(); return state(); };
 function handle(channel, fn) {
@@ -135,6 +137,8 @@ function updateTray() {
       },
     })) },
     ...(!selectedDisplay() ? [{ label: `${store.data.settings.displayIdentity?.label || 'Gekozen scherm'} niet aangesloten`, enabled: false }] : []),
+    { type: 'separator' },
+    { label: updates?.state.version ? `Update ${updates.state.version} bekijken…` : 'Controleren op updates…', click: () => { showMain(); updates?.prompt(); void updates?.check(); } },
     { type: 'separator' }, { label: 'Afsluiten', click: () => { quit = true; app.quit(); } },
   ]));
 }
@@ -234,6 +238,10 @@ async function openServiceInternal(id) {
 }
 
 function installHandlers() {
+  handle('updates:check', () => updates.check());
+  handle('updates:download', () => updates.download());
+  handle('updates:install', () => updates.install());
+  handle('updates:release', () => shell.openExternal(updates.releaseUrl()));
   handle('bootstrap', () => ({ state: state(), metrics }));
   handle('games:scan', scan);
   handle('games:cover', async id => {
@@ -413,6 +421,25 @@ function emitMetrics() { if (win && !win.isDestroyed()) win.webContents.send('me
 
 if (hasLock) app.whenReady().then(async () => {
   store = new Store(app.getPath('userData'));
+  updates = new Updates({
+    engine: electronUpdater.autoUpdater, version: app.getVersion(), enabled: app.isPackaged && process.platform === 'win32',
+    automatic: () => !testing && store.data.settings.checkUpdates,
+    prepareInstall: async () => {
+      hideService();
+      if (desktop?.ready) await desktop.request('release-all');
+      store.save();
+      // The updater must be allowed to quit a tray-only app after restoring native windows.
+      stopping = true; quit = true;
+    },
+    installFailed: () => { stopping = false; quit = false; },
+  });
+  if (testing) app.nexusTestUpdates = updates;
+  updates.on('state', data => { if (win && !win.isDestroyed()) win.webContents.send('updates:state', data); updateTray(); });
+  updates.on('available', data => {
+    if (win?.isVisible() || !Notification.isSupported() || testing) return;
+    const notification = new Notification({ title: `Nexus Hub ${data.version} beschikbaar`, body: 'Open Nexus om de update te bekijken en te installeren.' });
+    notification.on('click', () => { showMain(); updates.prompt(); }); notification.show();
+  });
   if (!store.data.feature110) { store.data.settings.artwork = true; store.data.feature110 = true; store.save(); }
   artwork = new Artwork(app.getPath('userData')); await artwork.init();
   protocol.handle('nexus-cover', request => {
@@ -462,6 +489,7 @@ if (hasLock) app.whenReady().then(async () => {
   const trayImage = nativeImage.createFromPath(path.join(directory, '..', 'assets', 'icon.png')).resize({ width: 32, height: 32 });
   tray = new Tray(trayImage); tray.setToolTip('Nexus Hub · Ctrl+Shift+Space');
   updateTray();
+  updates.start();
   tray.on('double-click', showMain);
   globalShortcut.register('CommandOrControl+Shift+Space', () => win.isVisible() ? hideMain() : showMain());
   globalShortcut.register('CommandOrControl+Shift+O', toggleOverlay);
@@ -486,6 +514,6 @@ app.on('second-instance', showMain);
 app.on('activate', showMain);
 app.on('before-quit', event => {
   if (!stopping && desktop?.ready) { event.preventDefault(); stopping = true; desktop.request('release-all').catch(() => {}).finally(() => app.quit()); return; }
-  quit = true; clearTimeout(repositionTimer); timers.forEach(clearInterval); native?.stop(); desktop?.stop(); rgb?.stop(); for (const view of views.values()) view.webContents.close(); });
+  quit = true; updates?.stop(); clearTimeout(repositionTimer); timers.forEach(clearInterval); native?.stop(); desktop?.stop(); rgb?.stop(); for (const view of views.values()) view.webContents.close(); });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => app.quit());

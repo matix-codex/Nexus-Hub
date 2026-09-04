@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowDown, ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUp, ArrowUpRight, Bell, Bluetooth, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Cpu, Download, Expand, ExternalLink, Eye, Gamepad2, Globe, Grip, Headphones, LayoutDashboard, LayoutGrid, List, Maximize2, MessageCircle, Mic, MicOff, Minimize2, Minus, Monitor, Music2, Network, Pause, Play, Plus, Power, Radio, RefreshCw, Search, Settings2, ShieldCheck, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Star, StickyNote, Timer, Trash2, Volume2, VolumeX, Waves, Wifi, X, Zap } from 'lucide-react';
 import { api } from './api.js';
 import { HardwarePage, RGBPage, RadioPage, RadioDock, useRadio } from './Extensions.jsx';
+import { UpdateDetails, UpdateSettings } from './Updates.jsx';
 
 const profiles = { command: 'Command center', gaming: 'Gaming', focus: 'Focus' };
 const widgetInfo = {
@@ -39,11 +40,13 @@ export default function App() {
   const [state, setState] = useState(null), [metrics, setMetrics] = useState({}), [history, setHistory] = useState({ cpu: [], gpu: [], ram: [], down: [], up: [] });
   const [page, setPage] = useState('dashboard'), [edit, setEdit] = useState(false), [modal, setModal] = useState(null), [toast, setToast] = useState(null), [search, setSearch] = useState(''), [serviceStatus, setServiceStatus] = useState({});
   const player = useRadio();
+  const [update, setUpdate] = useState(null); const shownUpdate = useRef(0);
   const now = useNow(); const toastTimer = useRef();
   const notify = (text, error = false) => { clearTimeout(toastTimer.current); setToast({ text, error }); toastTimer.current = setTimeout(() => setToast(null), error ? 6500 : 3500); };
   const run = async (fn, success) => { try { const result = await fn(); if (success) notify(success); return result; } catch (error) { notify(error.message.replace(/^Error invoking remote method '[^']+': Error: /, ''), true); } };
   useEffect(() => {
-    api.bootstrap().then(data => { setState(data.state); setMetrics(data.metrics); }).catch(error => notify(error.message, true));
+    api.bootstrap().then(data => { setState(data.state); setMetrics(data.metrics); setUpdate(data.state.updates); }).catch(error => notify(error.message, true));
+    const offUpdate = api.onUpdate(setUpdate);
     const offState = api.onState(setState);
     const offMetrics = api.onMetrics(data => {
       setMetrics(data);
@@ -51,8 +54,11 @@ export default function App() {
     });
     const offService = api.onService(data => setServiceStatus(old => ({ ...old, [data.id]: { ...old[data.id], ...data } })));
     const offShortcut = api.onShortcut(action => { if (action === 'search') setModal('search'); });
-    return () => { offState(); offMetrics(); offService(); offShortcut(); clearTimeout(toastTimer.current); };
+    return () => { offState(); offMetrics(); offService(); offShortcut(); offUpdate(); clearTimeout(toastTimer.current); };
   }, []);
+  useEffect(() => {
+    if (update?.prompt > shownUpdate.current && (!modal || modal === 'update')) { shownUpdate.current = update.prompt; setModal('update'); }
+  }, [update?.prompt, modal]);
   useEffect(() => {
     const listener = e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setModal(old => old === 'search' ? null : 'search'); }
@@ -77,7 +83,7 @@ export default function App() {
   const updateLayout = next => run(() => api.layout(settings.profile, next));
   const moveWidget = (id, shift) => { const next = [...layout], i = next.indexOf(id), j = i + shift; if (j >= 0 && j < next.length) { [next[i], next[j]] = [next[j], next[i]]; updateLayout(next); } };
   const goService = id => { navigate(id); setServiceStatus(old => ({ ...old, [id]: { loading: true } })); };
-  const context = { player, state, metrics, history, now, run, notify, navigate, gameLaunch, goService, setModal, changeSettings };
+  const context = { player, state, update, metrics, history, now, run, notify, navigate, gameLaunch, goService, setModal, changeSettings };
   return <div className={`app theme-${settings.theme} density-${settings.density} ${settings.reduceMotion ? 'reduce-motion' : ''} ${state.overlay ? 'is-overlay' : ''}`}>
     <aside className="sidebar"><button className="brand-button" aria-label="Nexus dashboard" onClick={() => navigate('dashboard')}><Brand small /></button><div className="nav-main">
       <Nav icon={LayoutDashboard} label="Dashboard" active={page === 'dashboard'} onClick={() => navigate('dashboard')} />
@@ -91,7 +97,7 @@ export default function App() {
     </div><div className="nav-bottom"><Nav icon={Settings2} label="Instellingen" active={page === 'settings'} onClick={() => navigate('settings')} /><div className="avatar" title="Lokaal profiel">{(settings.username || 'N').slice(0, 1).toUpperCase()}<i /></div></div></aside>
     <div className="main-shell">
       <header className="topbar"><div className="topbar-brand"><Brand /><span className="version">PERSONAL COMMAND CENTER</span></div>
-        <div className="topbar-right"><span className="local-status"><i className="status-dot" /> Lokaal verbonden</span><button className="search-trigger" onClick={() => setModal('search')}><Search size={15} /><span>Zoeken</span><kbd>Ctrl K</kbd></button></div>
+        <div className="topbar-right">{update?.version && <button className="update-indicator" aria-label="Nexus-update bekijken" onClick={() => setModal('update')}><Download size={14} /><span>{update.status === 'downloading' ? `${update.progress}%` : `Update ${update.version}`}</span></button>}<span className="local-status"><i className="status-dot" /> Lokaal verbonden</span><button className="search-trigger" onClick={() => setModal('search')}><Search size={15} /><span>Zoeken</span><kbd>Ctrl K</kbd></button></div>
       </header>
       <main className={`main-content ${service ? 'service-content' : ''}`}>
         {page === 'dashboard' && <>
@@ -120,7 +126,8 @@ export default function App() {
     </div>
     {!service && <RadioDock player={player} onOpen={() => navigate('radio')} />}
     {toast && <div className={`toast ${toast.error ? 'error' : ''}`} role="status">{toast.error ? <Bell size={18} /> : <Check size={18} />}<span>{toast.text}</span><button aria-label="Melding sluiten" onClick={() => setToast(null)}><X size={16} /></button></div>}
-    {modal && <Modal title={modal === 'widgets' ? 'Maak ruimte voor wat telt' : modal === 'add-game' ? 'Voeg een game toe' : 'Zoek in je command center'} onClose={() => setModal(null)} wide={modal === 'widgets'}>
+    {modal && <Modal title={modal === 'update' ? 'Een frisse versie van Nexus' : modal === 'widgets' ? 'Maak ruimte voor wat telt' : modal === 'add-game' ? 'Voeg een game toe' : 'Zoek in je command center'} onClose={() => setModal(null)} wide={modal === 'widgets'}>
+      {modal === 'update' && <UpdateDetails update={update} run={run} onLater={() => setModal(null)} />}
       {modal === 'widgets' && <WidgetPicker {...context} layout={layout} updateLayout={updateLayout} />}
       {modal === 'add-game' && <AddGame {...context} />}
       {modal === 'search' && <CommandSearch {...context} />}
@@ -229,13 +236,14 @@ function NativeServicePage({ id, definition, status, run, state }) {
   }, [id]);
   return <><div className="service-toolbar"><div><AppMark id={id} color={definition.color} /><span><h1>{definition.name}</h1><small>Geïnstalleerde Windows-app · Bestaande aanmelding</small></span></div><div><span className="session-badge"><Monitor size={13} />Windows-app</span><button className="button secondary" onClick={() => run(() => api.service('external', id))}>Los openen<ExternalLink size={14} /></button><button className="button secondary" onClick={() => run(() => api.service('reload', id))}><RefreshCw size={15} />In Nexus plaatsen</button></div></div><div ref={target} className="service-view"><div className="service-intro native-app-card"><AppMark id={id} color={definition.color} size="large" /><h2>{status?.error ? definition.name + ' verbinden' : status?.loading ? 'Windows-app openen…' : definition.name + ' op je Nexus-scherm'}</h2><p>{state.preview ? 'Open Nexus Hub op Windows om je geïnstalleerde apps te gebruiken.' : status?.error || 'Nexus plaatst het echte appvenster in deze ruimte. Je aanmelding en gegevens blijven in de Windows-app. Bij afsluiten van Nexus wordt het venster teruggezet.'}</p>{status?.error && <button className="button primary" onClick={() => run(() => api.service('reload', id))}>Opnieuw proberen</button>}{status?.loading && <RefreshCw size={24} className="spin" />}</div></div></>;
 }
-function Settings({ state, changeSettings, run }) {
+function Settings({ state, update, changeSettings, run }) {
   const s = state.settings; const [name, setName] = useState(s.username);
   return <><div className="page-heading"><div><div className="eyebrow"><span className="tiny-line" /> BUILT AROUND YOU.</div><h1>Maak Nexus van jou<span className="accent">.</span></h1><p>Een tweede scherm dat precies bij je setup past.</p></div><span className="pill">NEXUS HUB {state.version}</span></div><div className="settings-grid">
     <section className="settings-section"><div className="section-title"><Monitor size={20} /><div><h2>Je scherm, jouw cockpit</h2><p>Nexus blijft op het gekozen scherm, ook bij herstart en in overlaymodus.</p></div></div><div className="display-lock-note"><ShieldCheck size={15} /><span>{state.displayTarget?.available === false ? `${state.displayTarget.label} is niet aangesloten. Je keuze blijft bewaard.` : `Vast scherm: ${state.displayTarget?.label || 'kies hieronder je display'}`}</span></div><div className="display-cards">{state.displays.length ? state.displays.map((d, i) => <button key={d.id} className={(state.displayTarget?.activeId ?? s.displayId) === d.id ? 'active' : ''} onClick={() => changeSettings({ displayId: d.id })}><div className="display-illustration"><Monitor size={46} strokeWidth={1} /><span>{i + 1}</span></div><strong>{d.label}</strong><small>{d.width} × {d.height}{d.primary ? ' · Hoofdscherm' : ' · Extra scherm'}</small>{(state.displayTarget?.activeId ?? s.displayId) === d.id && <Check size={15} />}</button>) : <p>Open de desktopapp om je beeldschermen te kiezen.</p>}</div><SettingRow label="Volledig scherm" description="Vul het gekozen scherm. F11 wisselt, Escape keert terug." checked={Boolean(state.fullscreen)} onChange={value => changeSettings({ fullscreen: value })} /><SettingRow label="Altijd op de voorgrond" description="Houd Nexus zichtbaar boven normale vensters." checked={s.alwaysOnTop} onChange={value => changeSettings({ alwaysOnTop: value })} /><button className="text-link" onClick={() => run(() => api.window('display-settings'))}>Windows-beeldscherminstellingen<ExternalLink size={14} /></button></section>
     <section className="settings-section"><div className="section-title"><Sparkles size={20} /><div><h2>De juiste sfeer</h2><p>Rustig, helder en helemaal jouw stijl.</p></div></div><div className="theme-options">{[['mint', 'Arctic mint', '#a7e6c7'], ['violet', 'After hours', '#c0adf1'], ['amber', 'Golden hour', '#eac08c']].map(([id, label, color]) => <button key={id} className={s.theme === id ? 'active' : ''} onClick={() => changeSettings({ theme: id })}><span className="theme-swatch" style={{ '--swatch': color }}><i /><i /><i /></span><span>{label}</span>{s.theme === id && <Check size={14} />}</button>)}</div><div className="setting-row"><div><strong>Weergavedichtheid</strong><p>Meer ruimte of meer informatie op je scherm.</p></div><select aria-label="Weergavedichtheid" className="select" value={s.density} onChange={e => changeSettings({ density: e.target.value })}><option value="comfortable">Comfortabel</option><option value="compact">Compact</option></select></div><SettingRow label="Minder animatie" description="Een stiller dashboard, zonder bewegende effecten." checked={s.reduceMotion} onChange={value => changeSettings({ reduceMotion: value })} /><SettingRow label="Gamehoezen ophalen" description="Toon automatisch gevonden en lokaal bewaarde hoezen. Kies ook zelf een afbeelding per game." checked={s.artwork} onChange={value => changeSettings({ artwork: value })} /></section>
     <section className="settings-section"><div className="section-title"><Settings2 size={20} /><div><h2>Dagelijks gebruik</h2><p>Kleine details die het verschil maken.</p></div></div><div className="setting-row"><div><strong>Hoe mogen we je noemen?</strong><p>Alleen opgeslagen op deze computer.</p></div><input className="text-input name-input" aria-label="Je naam" placeholder="Je voornaam" value={name} maxLength={36} onChange={e => setName(e.target.value)} onBlur={() => changeSettings({ username: name })} onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); }} /></div><SettingRow label="Starten met Windows" description="Werkt zodra Nexus met de installer is geïnstalleerd." checked={s.autostart} onChange={value => changeSettings({ autostart: value })} /><div className="hotkeys"><div><span>Toon / verberg Nexus</span><kbd>Ctrl + Shift + Space</kbd></div><div><span>Compacte overlay</span><kbd>Ctrl + Shift + O</kbd></div><div><span>Zoeken in Nexus</span><kbd>Ctrl + K</kbd></div><div><span>Volledig scherm</span><kbd>F11</kbd></div></div></section>
     <section className="settings-section"><div className="section-title"><ShieldCheck size={20} /><div><h2>Lokaal en in jouw handen</h2><p>Geen Nexus-account. Geen telemetrie.</p></div></div><p className="settings-prose">Je indeling, notities en bibliotheek worden op deze pc opgeslagen. Discord, Spotify en WhatsApp gebruiken hun geïnstalleerde Windows-app en bestaande aanmelding. Nexus beheert hun vensters en zet ze bij afsluiten terug. Aanmelden en uitloggen doe je in de Windows-app zelf. Nexus leest geen wachtwoorden of chatberichten uit.</p><div className="settings-actions"><button className="button secondary" onClick={() => run(() => api.exportConfig()).then(done => done && null)}><Download size={15} />Indeling exporteren</button><button className="button secondary" onClick={() => run(() => api.importConfig())}><ArrowUp size={15} />Indeling importeren</button></div><p className="small-note">Een export bevat je thema, widgets en indeling. Accounts, games en notities blijven lokaal.</p><div className="settings-bottom"><span>Nexus Hub · Windows 10 / 11</span><button className="text-link danger" onClick={() => run(() => api.window('quit'))}><Power size={14} />Nexus afsluiten</button></div></section>
+    <UpdateSettings state={state} update={update} changeSettings={changeSettings} run={run} />
   </div></>;
 }
 function SettingRow({ label, description, checked, onChange }) { return <div className="setting-row"><div><strong>{label}</strong><p>{description}</p></div><button className={`toggle ${checked ? 'on' : ''}`} role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} /></div>; }

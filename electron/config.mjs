@@ -10,7 +10,7 @@ export const LAUNCHERS = {
 };
 export const WIDGETS = ['welcome', 'system', 'media', 'social', 'library', 'audio', 'network', 'clock', 'notes', 'timer', 'launchers', 'radio'];
 export const DEFAULTS = {
-  settings: { displayId: null, displayIdentity: null, fullscreen: false, alwaysOnTop: false, autostart: false, theme: 'mint', density: 'comfortable', profile: 'command', username: '', artwork: true, reduceMotion: false },
+  settings: { displayId: null, displayIdentity: null, fullscreen: false, alwaysOnTop: false, autostart: false, theme: 'mint', density: 'comfortable', profile: 'command', username: '', artwork: true, reduceMotion: false, checkUpdates: true },
   layouts: {
     command: ['welcome', 'system', 'media', 'social', 'library', 'audio', 'network', 'clock', 'launchers'],
     gaming: ['welcome', 'system', 'media', 'audio', 'library', 'launchers', 'social', 'network'],
@@ -25,7 +25,7 @@ export function safeWebUrl(value) {
 export function validateSettings(input) {
   const result = {};
   if (!input || typeof input !== 'object') return result;
-  for (const k of ['fullscreen', 'alwaysOnTop', 'autostart', 'artwork', 'reduceMotion']) if (typeof input[k] === 'boolean') result[k] = input[k];
+  for (const k of ['fullscreen', 'alwaysOnTop', 'autostart', 'artwork', 'reduceMotion', 'checkUpdates']) if (typeof input[k] === 'boolean') result[k] = input[k];
   if (['mint', 'violet', 'amber'].includes(input.theme)) result.theme = input.theme;
   if (['comfortable', 'compact'].includes(input.density)) result.density = input.density;
   if (['command', 'gaming', 'focus'].includes(input.profile)) result.profile = input.profile;

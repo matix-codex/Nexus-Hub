@@ -44,11 +44,16 @@ jobs:
           $tag = "v$version"
           $installer = "release/Nexus-Hub-Setup-$version.exe"
           $checksum = "release/SHA256-$version.txt"
+          $metadata = 'release/latest.yml'
+          $blockmap = "$installer.blockmap"
+          foreach ($file in @($installer, $metadata, $blockmap)) {
+            if (!(Test-Path -LiteralPath $file)) { throw "Missing update asset: $file" }
+          }
           $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
           Set-Content -LiteralPath $checksum -Value "$hash  Nexus-Hub-Setup-$version.exe" -Encoding utf8
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists; existing downloads will not be overwritten." }
-          gh release create $tag $installer $checksum --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Nexus Hub $version" --notes-file .github/release-notes.md --draft
+          gh release create $tag $installer $checksum $metadata $blockmap --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Nexus Hub $version" --notes-file .github/release-notes.md --draft
           if ($LASTEXITCODE -ne 0) { throw 'Release upload failed.' }
           gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

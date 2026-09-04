@@ -4,7 +4,7 @@ Een Windows-dashboard voor je tweede scherm met games, Windows-apps, hardwaremet
 
 ## Installeren
 
-Download **Nexus-Hub-Setup-1.1.0.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest). Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
+Download **Nexus-Hub-Setup-1.2.0.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest). Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
 
 Kies in **Instellingen** je extra beeldscherm en schakel **Volledig scherm** in. Nexus bewaart de keuze, ook na herstart en voor de compacte overlay. Als het scherm wordt losgekoppeld, wacht Nexus verborgen op datzelfde scherm. Via **Vast scherm** in het systeemvak kun je een ander scherm kiezen.
 
@@ -16,6 +16,16 @@ Nexus verschijnt alleen in het systeemvak, zonder taakbalkknop of vensterknoppen
 | Ctrl+Shift+O | Compacte overlay |
 | F11 / Escape | Fullscreen wisselen / verlaten vanuit Nexus |
 | Ctrl+K | Zoeken vanuit Nexus |
+
+## Updates vanuit Nexus
+
+Vanaf **1.2.0** controleert Nexus ongeveer 15 seconden na het starten en vervolgens elke zes uur de stabiele releases op [GitHub](https://github.com/matix-codex/Nexus-Hub/releases). Bij een nieuwe versie verschijnt een melding in Nexus. Als Nexus verborgen is, kun je de update via de Windows-melding of het systeemvak openen.
+
+Kies **Update downloaden** en daarna **Installeren en herstarten**. **Later** stelt de installatie uit. Afsluiten of herstarten van Nexus installeert niets zonder deze keuze. Downloads worden op SHA-512 en bestandsgrootte gecontroleerd, ook opnieuw vóór installatie. Nexus zet beheerde Windows-appvensters terug en bewaart instellingen en schermkeuze voordat de installer start.
+
+Onder **Instellingen → Nexus-updates** staan de huidige versie, laatste controle en een handmatige controleknop. Automatisch controleren kun je daar uitschakelen. Bij verbindings- of downloadproblemen blijft Nexus bruikbaar en kun je opnieuw proberen. Een download die op de achtergrond afloopt, vraagt daarna om installatie.
+
+**Eenmalige overstap:** versie 1.1.0 en ouder hebben nog geen updater. Installeer 1.2.0 één keer met de installer; volgende versies worden vanuit Nexus aangeboden.
 
 ## Games en hoezen
 
@@ -86,8 +96,13 @@ Vereist Node.js 22.12+ of 24+, Windows PowerShell 5.1 en .NET Framework 4.8. C#-
 5. npm run test:desktop
 6. node scripts/update-smoke.mjs
 7. node scripts/features-smoke.mjs (NEXUS_TEST_NATIVE=1 activeert de native-appcontroles)
-8. npm run dist
+8. node scripts/updater-smoke.mjs
+9. npm run dist
 
 dev:web toont een browserpreview zonder verzonnen hardwaregegevens. Tests gebruiken een afzonderlijk gegevensprofiel. De featuretest is bedoeld voor de lokale pc met geïnstalleerde apps en games; radioweergave wordt op nul volume gecontroleerd. CI draait de overdraagbare unittests en bouwt de installer.
+
+De updater-smoketest gebruikt de echte electron-updater-downloadcode met een lokale testserver en een onuitvoerbaar testbestand. De installatieaanroep wordt onderschept; de test installeert niets. NEXUS_TEST_EXE kan naar een gebouwde Nexus-executable verwijzen. De unittests controleren onder meer toestemming, versievolgorde, checksumfouten, herstel vóór installatie en opgeslagen voorkeuren.
+
+Voor een nieuwe release: verhoog de versie in package.json en package-lock.json, werk .github/release-notes.md bij en publiceer via de Windows-workflow. Deze plaatst de installer, SHA-256-bestand, **latest.yml** en **.exe.blockmap** samen in een conceptrelease en maakt die pas daarna openbaar. De updatebron is vast ingesteld op matix-codex/Nexus-Hub; er is geen GitHub-token in de app nodig.
 
 In 1.1.0 lokaal gecontroleerd: echte gamehoezen, RTX 2070-telemetrie, GPU-tellers, radio die audio decodeert, favorieten en doorlopende radio bij navigatie; vensterbeheer voor WhatsApp, Discord en Spotify; schermkeuze na loskoppelen en herstart. Gesprekken versturen, bellen en accountwijzigingen maken geen deel uit van de test.

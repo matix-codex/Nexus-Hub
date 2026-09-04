@@ -9,6 +9,7 @@ const state = () => ({ ...preview, preview: true, library: { games: [], startApp
 function save() { localStorage.setItem(previewKey, JSON.stringify(preview)); const data = state(); listeners.forEach(fn => fn(data)); return Promise.resolve(data); }
 const desktop = () => Promise.reject(new Error('Open de Nexus Hub-desktopapp voor deze Windows-functie.'));
 export const api = window.nexus || {
+  updateCheck: desktop, updateDownload: desktop, updateInstall: desktop, updateRelease: desktop, onUpdate: () => () => {},
   rgbInstallMsi: desktop, chooseCover: desktop, radioSearch: desktop, radioFavorite: desktop, rgbStatus: desktop, rgbApply: desktop, rgbOpen: desktop,
   bootstrap: async () => ({ state: state(), metrics: {} }),
   onState: fn => { listeners.add(fn); return () => listeners.delete(fn); }, onMetrics: () => () => {}, onService: () => () => {}, onShortcut: () => () => {},
