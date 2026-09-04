@@ -81,19 +81,20 @@ try {
   await page.evaluate(() => window.nexus.window('overlay'));
   assert.equal((await page.evaluate(() => window.nexus.bootstrap())).state.overlay, false);
   console.log('PASS: Native overlay sizing, always-on-top and restoration.');
-  await page.getByRole('button', { name: 'Discord', exact: true }).click();
+  const widgetState = await page.evaluate(() => window.nexus.webWidget({ name: 'Security test', url: 'https://example.com/' }));
+  await page.evaluate(id => window.nexus.service('open', id), widgetState.webWidgets.at(-1).id);
   const remote = await app.evaluate(async ({ webContents }) => {
     for (let i = 0; i < 100; i++) {
-      const contents = webContents.getAllWebContents().find(w => w.getURL().startsWith('https://discord.com/'));
+      const contents = webContents.getAllWebContents().find(w => w.getURL().startsWith('https://example.com/'));
       if (contents) return { id: contents.id, preferences: contents.getLastWebPreferences(), hasBridge: await contents.executeJavaScript('typeof window.nexus !== "undefined" || typeof require !== "undefined"') };
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     return null;
   });
-  assert.ok(remote, 'Discord embedded web contents must exist');
+  assert.ok(remote, 'Custom web widget must exist');
   assert.equal(remote.preferences.sandbox, true); assert.equal(remote.preferences.nodeIntegration, false); assert.equal(remote.hasBridge, false);
   await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
-  console.log('PASS: Embedded Discord session loads in a sandbox without access to the Windows bridge.');
+  console.log('PASS: Custom web widget loads in a sandbox without access to the Windows bridge.');
   await assert.rejects(() => page.evaluate(() => window.nexus.webWidget({ name: 'Unsafe', url: 'file:///C:/Windows' })));
   await assert.rejects(() => page.evaluate(() => window.nexus.launchGame('untrusted-id')));
   await assert.rejects(() => page.evaluate(() => window.nexus.audio('volume', 500)));

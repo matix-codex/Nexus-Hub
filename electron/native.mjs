@@ -9,10 +9,10 @@ export function runPowerShell(file, args = []) {
   return new Promise((resolve, reject) => execFile(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file, ...args], { windowsHide: true, timeout: 45000, maxBuffer: 12 * 1024 * 1024, encoding: 'utf8' }, (error, stdout) => error ? reject(error) : resolve(stdout.replace(/^\uFEFF/, ''))));
 }
 export class NativeBridge extends EventEmitter {
-  constructor(directory) { super(); this.directory = directory; this.pending = new Map(); this.nextId = 0; this.stopped = false; this.ready = false; }
+  constructor(directory, script = 'bridge.ps1', args = [], timeout = 10000) { super(); this.directory = directory; this.script = script; this.args = args; this.timeout = timeout; this.pending = new Map(); this.nextId = 0; this.stopped = false; this.ready = false; }
   start() {
     if (process.platform !== 'win32') return;
-    this.child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(this.directory, 'bridge.ps1')], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    this.child = spawn(POWERSHELL, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(this.directory, this.script), ...this.args], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     const lines = readline.createInterface({ input: this.child.stdout });
     lines.on('line', line => {
       try {
@@ -36,12 +36,12 @@ export class NativeBridge extends EventEmitter {
     if (this.pending.size > 5) return Promise.reject(new Error('Windows is nog bezig.'));
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => { this.pending.delete(id); reject(new Error('Windows reageerde niet op tijd.')); this.child?.kill(); }, 10000);
+      const timeout = setTimeout(() => { this.pending.delete(id); reject(new Error('Windows reageerde niet op tijd.')); this.child?.kill(); }, this.timeout);
       this.pending.set(id, { resolve, reject, timeout });
       this.child.stdin.write(JSON.stringify({ id, action, value }) + '\n');
     });
   }
-  stop() { this.stopped = true; clearTimeout(this.retry); this.child?.kill(); }
+  stop() { this.stopped = true; clearTimeout(this.retry); this.child?.stdin.end(); const child = this.child; const timer = setTimeout(() => child?.kill(), 5000); timer.unref(); }
 }
 
 let lastCpu = null;

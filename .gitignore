@@ -12,3 +12,5 @@ native/webview2/
 !.env.example
 *.pfx
 *.p12
+
+native/bin/

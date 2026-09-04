@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const invoke = (channel) => (...args) => ipcRenderer.invoke(channel, ...args);
 contextBridge.exposeInMainWorld('nexus', {
+  rgbInstallMsi: invoke('rgb:install-msi'), chooseCover: invoke('games:cover'), radioSearch: invoke('radio:search'), radioFavorite: invoke('radio:favorite'), rgbStatus: invoke('rgb:status'), rgbApply: invoke('rgb:apply'), rgbOpen: invoke('rgb:open'),
   bootstrap: invoke('bootstrap'), scanGames: invoke('games:scan'), launchGame: invoke('games:launch'),
   addGame: invoke('games:add'), addStartApp: invoke('games:add-start'), removeGame: invoke('games:remove'), favorite: invoke('games:favorite'),
   settings: invoke('settings:save'), layout: invoke('layout:save'), notes: invoke('notes:save'), timer: invoke('timer:save'),

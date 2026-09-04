@@ -1,81 +1,93 @@
 # Nexus Hub
 
-Een zelfstandig Windows-dashboard voor je tweede scherm, geïnspireerd door Xenon, Xbox Game Bar, Rainmeter en Overwolf. Gebouwd met Electron, React en een lokale Windows-bridge. Geen Nexus-account nodig.
+Een Windows-dashboard voor je tweede scherm met games, Windows-apps, hardwaremetingen, RGB en internetradio. Gebouwd met Electron, React en lokale Windows-bridges. Geen Nexus-account nodig.
 
-## Starten
+## Installeren
 
-- **Download:** [nieuwste Windows-installer op GitHub](https://github.com/matix-codex/Nexus-Hub/releases/latest). Kies het bestand `Nexus-Hub-Setup-1.0.2.exe` bij Assets.
-- **Installeren:** open `release/Nexus-Hub-Setup-1.0.2.exe`. De installer maakt een snelkoppeling aan en installeert WebView2 via Microsoft wanneer de runtime ontbreekt (internet nodig).
-- **Direct uitvoeren:** open `release/1.0.2/win-unpacked/Nexus Hub.exe`. Laat de overige bestanden in die map staan.
-- Open **Instellingen**, kies je extra scherm en schakel **Volledig scherm** in. Nexus bewaart je schermkeuze.
-- **F11:** wissel fullscreen. **Escape:** terug naar venstermodus.
-- **Ctrl+Shift+Space:** toon/verberg Nexus. **Ctrl+Shift+O:** compacte overlay.
-- Nexus verschijnt alleen in het systeemvak. De knoppen voor minimaliseren, fullscreen en sluiten zijn uit de bovenbalk verwijderd. Dubbelklik op het systeemvakpictogram om Nexus te openen. Afsluiten kan via het systeemvak of Instellingen.
-- De gekozen monitor blijft vastgelegd, ook voor de overlay. Bij loskoppelen wacht Nexus verborgen totdat hetzelfde scherm terugkomt. Je kunt via het systeemvak onder **Vast scherm** zelf een ander aangesloten scherm kiezen. Nexus springt niet naar het scherm bij de muis.
+Download **Nexus-Hub-Setup-1.1.0.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest). Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
 
-## Functies
+Kies in **Instellingen** je extra beeldscherm en schakel **Volledig scherm** in. Nexus bewaart de keuze, ook na herstart en voor de compacte overlay. Als het scherm wordt losgekoppeld, wacht Nexus verborgen op datzelfde scherm. Via **Vast scherm** in het systeemvak kun je een ander scherm kiezen.
 
-| Onderdeel | Werking |
+Nexus verschijnt alleen in het systeemvak, zonder taakbalkknop of vensterknoppen rechtsboven. Dubbelklik op het systeemvakpictogram om Nexus te tonen. Afsluiten kan via het systeemvak of Instellingen.
+
+| Sneltoets | Actie |
 | --- | --- |
-| Dashboard | Verplaatsbare widgets, normale/brede tegels, eigen HTTPS-webwidgets, drie profielen, drie thema’s, compacte weergave en indeling importeren/exporteren. |
-| Extra scherm | Native fullscreen op een gekozen monitor, schermherstel na loskoppelen, optioneel altijd bovenop en starten met Windows. Standaardindeling past op 2560×720. |
-| Gamebibliotheek | Lokale detectie, zoeken, filters per platform, favorieten, laatst gestart, raster/lijst en handmatig toevoegen van EXE/LNK/URL of Windows-apps. |
-| Steam | Bibliotheekmappen en ACF-manifesten, starten via Steam, optionele officiële coverafbeeldingen. |
-| Epic | Geïnstalleerde games uit Epic-manifesten, starten via Epic. |
-| Xbox | Geïnstalleerde MicrosoftGame.config-pakketten detecteren en starten via de Windows-app-ID. Andere Windows-games kunnen handmatig worden toegevoegd. |
-| EA, Rockstar, Ubisoft, Battle.net, GOG | Herkenning via installatieregisters en beschikbare uitvoerbare bestanden. Bij onduidelijke installaties kies je zelf het gamebestand. GOG-registervermeldingen met een game-executable worden ondersteund. |
-| Discord | Geïsoleerd ingebouwd Discord-webvenster, eigen login, chats en web-voicefuncties. Microfoon/camera vereisen toestemming in de app. |
-| WhatsApp | Geïsoleerd ingebouwd WhatsApp Web. Zelf koppelen via de QR-code. Functies volgen wat WhatsApp Web ondersteunt. |
-| Spotify | Eigen ingebouwde Windows WebView2-app met een afzonderlijk lokaal profiel. De webspeler opent rechtstreeks binnen Nexus en blijft actief bij wisselen van pagina. De Now playing-widget bedient beschikbare Windows-mediasessies. |
-| Xbox online | Snel toegang tot de Xbox-desktopapp en Cloud Gaming in de gewone browser. Party’s, vrienden en accountfuncties worden door Xbox verzorgd. |
-| Audio | Echte Windows-volumeregeling, uitvoermute en mute van de standaardcommunicatiemicrofoon. |
-| Monitoring | CPU, RAM, netwerkdoorvoer, klok en uptime. NVIDIA-gebruik en temperatuur via nvidia-smi als beschikbaar. Ontbrekende sensoren worden als niet beschikbaar getoond. |
-| Productiviteit | Automatisch opgeslagen notities en een focustimer die na herstart zijn resterende tijd bewaart, met Windows-melding bij voltooiing. |
+| Ctrl+Shift+Space | Nexus tonen/verbergen |
+| Ctrl+Shift+O | Compacte overlay |
+| F11 / Escape | Fullscreen wisselen / verlaten vanuit Nexus |
+| Ctrl+K | Zoeken vanuit Nexus |
 
-De overlay is een normaal native venster boven andere vensters. Bij games in exclusieve fullscreen kan dat venster niet worden gegarandeerd; borderless/windowed werkt hiervoor beter. Nexus injecteert geen code in games en bevat geen anti-cheat-hooks, FPS-capture, schermopname of kopie van alle functies uit de inspiratieprogramma’s.
+## Games en hoezen
 
-“Alle games” betekent één bibliotheek voor de lokaal gevonden en handmatig toegevoegde games. Niet-geïnstalleerde aankopen uit online winkelaccounts worden niet automatisch opgehaald. Startverzoeken worden aan de bijbehorende game/client doorgegeven; updates, DRM of login kunnen vervolgens door die client worden gevraagd. Launchers moeten geïnstalleerd zijn. Er zijn geen verzonnen vriendenlijsten, chatberichten, hardwaremetingen of games.
+- Lokale detectie van Steam-, Epic-, Xbox-, EA-, Rockstar-, Ubisoft-, Battle.net- en GOG-games, met platformfilters, favorieten, recent gestart en raster/lijst.
+- Hoezen staan standaard aan. Nexus gebruikt eerst de lokale Steam-cache en daarna Steam-afbeeldingen. Games uit andere winkels worden op exacte titel gematcht. Afbeeldingen worden lokaal bewaard voor offline gebruik.
+- Via **Hoes kiezen** op een gamekaart kun je een eigen JPG, PNG of WebP gebruiken. Geen exacte match betekent dat je zelf een afbeelding kiest; Nexus raadt geen andere editie.
+- Niet-herkende games voeg je toe via EXE/LNK/URL of Windows-app. Online aankopen die niet zijn geïnstalleerd worden niet uit winkelaccounts opgehaald. Launchers verzorgen updates, DRM en aanmelding.
 
-## Accounts en gegevens
+## Echte Windows-apps
 
-Je logt zelf in bij Discord en Spotify en koppelt zelf WhatsApp. Elke app heeft een eigen lokale sessie in Nexus. Discord en WhatsApp bewaren bestaande Electron-profielen; Spotify gebruikt de Windows WebView2-runtime met een eigen profiel in `apps/spotify` onder de Nexus-gegevensmap. Aanmeldvensters gebruiken dezelfde sessie en blijven bij Nexus. De drie apps openen standaard intern, zonder aparte desktopclient of browsertab.
+**WhatsApp, Discord en Spotify gebruiken de geïnstalleerde Windows-app.** Er wordt voor deze drie apps geen webpagina of WebView2-speler geopend. Hun bestaande aanmelding, gesprekken, voice- en muziekfuncties blijven in de oorspronkelijke app.
 
-Dit zijn de officiële webapps in een eigen lokale appomgeving; de diensten blijven internet en een eigen account vereisen. Functies volgen de mogelijkheden van de betreffende webapp. Er worden geen accounts of tokens uit geïnstalleerde apps overgenomen. Externe pagina’s krijgen geen Node-toegang, native preload, hostobjecten of Nexus-IPC.
+Nexus plaatst het native appvenster op het geselecteerde scherm, boven de app-ruimte in Nexus. Tijdens beheer verdwijnt dat venster uit de taakbalk. Bij paginawisseling wordt het verborgen; audio en gesprekken blijven doorlopen. Bij afsluiten zet Nexus de oorspronkelijke vensterpositie en taakbalkstijl terug. **Los openen** geeft het venster terug aan Windows.
 
-Getest in 1.0.2: de aanmeldpagina’s van alle drie de apps laden, Spotify is een echt kindvenster van Nexus, de Widevine-audio-interface is beschikbaar, appvensters verdwijnen voor Nexus-dialogen en de schermkeuze overleeft loskoppelen en herstarten. Muziekweergave na Spotify-login, gesprekken en voice zijn zonder jouw account niet end-to-end getest.
+De apps behouden hun eigen proces en eventuele eigen titelbalk. Dit is vensterbeheer, geen aangepaste kopie van hun interface. Minimale venstergrootte, app-updates, afzonderlijke pop-ups en verschillen in beheerdersrechten kunnen de plaatsing beperken. Bij een fout biedt Nexus opnieuw plaatsen en los openen aan. Nexus leest geen wachtwoorden, tokens of chatgeschiedenis. Aanmelden en uitloggen doe je in de Windows-app.
 
-Nexus-instellingen, favorieten, timer en notities staan in `%APPDATA%/nexus-hub/nexus.json`; de gamecache staat ernaast in `library.json`. De installer gebruikt dezelfde appgegevens. Een indelingsexport bevat alleen vormgeving en webwidgetadressen, geen accounts of notities. Gamecovers staan standaard uit en zijn optioneel in Instellingen. Er is geen telemetrie, cloudbackend of luisterende netwerkserver in de gebouwde app.
+Xbox opent de Xbox-desktopapp; Cloud Gaming kan in de browser worden geopend. Eigen HTTPS-webwidgets blijven in afzonderlijke sandboxvensters zonder Node-toegang of Nexus-preload.
 
-De Windows-helper draait als gewone gebruiker en ontvangt alleen begrensde opdrachten voor audio en media. Hij wordt bij afsluiten gestopt. Er wordt geen permanente Windows-taak of service aangemaakt. Starten met Windows gebeurt alleen als je dit in Instellingen inschakelt.
+## Systeemprestaties
 
-De meegeleverde installer is een lokale, niet met een uitgeverscertificaat ondertekende build.
+De dashboardwidget toont CPU, GPU en RAM. **Alle sensoren** opent het hardwareoverzicht:
 
-## Ontwikkelen
+| Bron | Beschikbare gegevens |
+| --- | --- |
+| Windows / systeminformation | CPU, threads, kloksnelheid, RAM-modules, moederbord, schijven en netwerkinterfaces |
+| NVIDIA NVML / nvidia-smi | Meerdere GPU’s, belasting, temperatuur, ventilatorpercentage, vermogen, vermogenslimiet, GPU/geheugenklok en VRAM |
+| Windows GPU-tellers | Belasting per 3D/copy/video-engine, dedicated en shared geheugen, afhankelijk van de driver |
+| LibreHardwareMonitor / OpenHardwareMonitor | Extra temperaturen, RPM, spanningen, vermogen en overige WMI-sensoren wanneer de betreffende app draait |
 
-Vereist Node.js 22.12+ of 24+ en Windows 10/11 x64 met Windows PowerShell 5.1 en .NET Framework 4.8. De distributie bevat Electron en vereist geen losse Node-installatie. `build:native` bouwt de C#-apphost met de Windows Framework-compiler en de vastgelegde officiële WebView2 SDK. De meegeleverde Microsoft-bootstrapper wordt op uitgevershandtekening gecontroleerd.
+Het scherm toont de verbindingsstatus van elke bron en de laatste meettijd. Ontbrekende waarden verschijnen als **—**, geen verzonnen nul. Voor aanvullende CPU- en moederbordsensoren moet een ondersteunde monitorapp met WMI draaien. Nexus installeert geen kernel- of SMBus-driver en wijzigt geen beveiligingsinstellingen.
 
-```powershell
-npm ci
-npm run dev
-```
+## Centrale RGB-bediening
 
-```powershell
-npm test               # Detectie, bestandsparsing, validatie en opslag
-npm run build:native   # Windows WebView2-apphost
-npm run build          # Productie-interface
-npm run test:desktop   # Echte Electron/Windows-integratietest, geïsoleerd profiel
-npm run dist           # Windows-installer + direct uitvoerbare map
-```
+Open **RGB-verlichting**, selecteer apparaten/zones, kies kleur en helderheid en druk op **Toepassen**. **Verlichting uit** stuurt zwart naar de selectie. Resultaten en fouten verschijnen per apparaat.
 
-`npm run dev:web` biedt een browserpreview zonder Windows-functies. Deze preview toont geen gesimuleerde hardware- of gamegegevens.
+- **Corsair iCUE:** directe SDK-koppeling voor statische verlichting. iCUE moet draaien en software-integraties toestaan. Nexus zoekt de SDK in de geïnstalleerde iCUE- en GIGABYTE-integraties. Een ontbrekende SDK wordt gemeld.
+- **MSI Center / Mystic Light:** directe Mystic Light SDK-adapter. Mystic Light en zijn service moeten beschikbaar zijn. **Officiële MSI SDK ophalen** downloadt SDK 1.0.0.08 rechtstreeks bij MSI en controleert de SHA-256 van archief en DLL. De SDK blijft lokaal; fabrikant-DLL’s worden niet in de GitHub-broncode of installer gekopieerd.
+- **GIGABYTE / OpenRGB:** compatibele apparaten lopen via de lokale OpenRGB SDK-server op 127.0.0.1:6742. Installeer [OpenRGB](https://openrgb.org/), controleer ondersteuning voor je model en zet de SDK-server aan. Nexus ondersteunt Direct-modus. Dit is geen directe universele API voor alle GIGABYTE Control Center-functies.
 
-## Structuur
+Gebruik per fysiek apparaat één RGB-controller om conflicten te voorkomen. Nexus schakelt geen fabrikantservices uit en past bij opstarten geen verlichting toe. Een aangesloten fabrikantapp garandeert niet dat elk apparaat aan zijn SDK wordt vrijgegeven.
 
-- `src/`: dashboard, widgets, bibliotheek, apps en instellingen.
-- `electron/`: vensters, afgeschermde IPC, sessies, gameherkenning, opslag en bridgebeheer.
-- `native/`: PowerShell-protocol, Windows-media, C# Core Audio en WebView2-apphost.
-- `tests/`: gerichte tests met tijdelijke game-installaties.
-- `scripts/smoke.mjs`: Electron-integratiecontrole en screenshots in `artifacts/`.
+Op de ontwikkelpc zijn K70 RGB MK.2, M65 PRO RGB en MM700 RGB via iCUE gedetecteerd. De MSI-SDK geeft daar momenteel geen tijdig antwoord; OpenRGB is niet actief. Die bronnen worden daarom niet als werkend gerapporteerd.
 
+## Internetradio
 
+De radiomodule en optionele radiowidget bieden zoeken op zender, land en genre via Radio Browser, lokale favorieten en eigen directe http(s)-streamadressen. MP3, AAC en ondersteunde OGG/Opus/FLAC-streams spelen binnen Nexus. HLS en M3U/PLS-afspeellijsten worden niet aangeboden.
 
+De speler blijft actief bij paginawisseling en heeft eigen volume- en mediaknoppen. Geen automatisch afspelen bij opstarten. Catalogus- en streamfouten worden getoond; opgeslagen favorieten blijven onafhankelijk van de catalogus bereikbaar. Een zender kan zijn streamadres of beschikbaarheid wijzigen.
+
+## Gegevens en overige functies
+
+Verplaatsbare widgets, brede/normale tegels, drie profielen en thema’s, notities, focustimer, Windows-audio/microfoonbediening, Windows-mediasessies en indeling importeren/exporteren blijven beschikbaar. De overlay werkt het best met borderless/windowed games; Nexus injecteert geen code in games.
+
+Instellingen, favorieten, notities en timer staan in %APPDATA%/nexus-hub/nexus.json, de gamecache in library.json, hoezen in covers/ en een eventueel opgehaalde MSI-SDK in rgb-sdk/. De installer behoudt deze gegevens. Een indelingsexport bevat vormgeving en webwidgetadressen, geen accounts of notities.
+
+Nexus heeft geen telemetrie, cloudbackend of luisterende netwerkserver. Externe catalogi, radiozenders en apps ontvangen de normale netwerkverzoeken die voor hun functies nodig zijn. Windows-helpers draaien onder de huidige gebruiker en stoppen met Nexus. Er wordt geen permanente Windows-service aangemaakt. Starten met Windows is optioneel.
+
+De installer heeft geen uitgeverscertificaat. De release bevat een SHA-256-bestand om de download te controleren.
+
+## Ontwikkelen en testen
+
+Vereist Node.js 22.12+ of 24+, Windows PowerShell 5.1 en .NET Framework 4.8. C#-bridges worden met de Windows Framework-compiler gebouwd; WebView2 is niet meer nodig voor de drie Windows-apps.
+
+1. npm ci
+2. npm run dev
+3. npm test
+4. npm run build:native && npm run build
+5. npm run test:desktop
+6. node scripts/update-smoke.mjs
+7. node scripts/features-smoke.mjs (NEXUS_TEST_NATIVE=1 activeert de native-appcontroles)
+8. npm run dist
+
+dev:web toont een browserpreview zonder verzonnen hardwaregegevens. Tests gebruiken een afzonderlijk gegevensprofiel. De featuretest is bedoeld voor de lokale pc met geïnstalleerde apps en games; radioweergave wordt op nul volume gecontroleerd. CI draait de overdraagbare unittests en bouwt de installer.
+
+In 1.1.0 lokaal gecontroleerd: echte gamehoezen, RTX 2070-telemetrie, GPU-tellers, radio die audio decodeert, favorieten en doorlopende radio bij navigatie; vensterbeheer voor WhatsApp, Discord en Spotify; schermkeuze na loskoppelen en herstart. Gesprekken versturen, bellen en accountwijzigingen maken geen deel uit van de test.

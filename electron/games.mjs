@@ -48,7 +48,15 @@ export async function scanSteam(root) {
         if (!data?.appid || !data.name || /redistributable|steamworks|proton|soldier|sniper|steam linux runtime/i.test(data.name)) continue;
         const installPath = path.join(library, 'steamapps', 'common', data.installdir || '');
         if (!await exists(installPath) || !(Number(data.StateFlags) & 4)) continue;
-        found.push({ id: `steam-${data.appid}`, name: data.name, source: 'Steam', target: `steam://rungameid/${data.appid}`, type: 'uri', installPath, appId: data.appid, artwork: `https://cdn.cloudflare.steamstatic.com/steam/apps/${data.appid}/library_600x900.jpg` });
+        let localArtwork;
+        const cache = path.join(root, 'appcache', 'librarycache');
+        for (const folder of await files(path.join(cache, data.appid))) {
+          if (!folder.isDirectory()) continue;
+          const candidate = path.join(cache, data.appid, folder.name, 'library_capsule.jpg');
+          if (await exists(candidate)) { localArtwork = candidate; break; }
+        }
+        if (!localArtwork && await exists(path.join(cache, `${data.appid}_library_600x900.jpg`))) localArtwork = path.join(cache, `${data.appid}_library_600x900.jpg`);
+        found.push({ id: `steam-${data.appid}`, name: data.name, source: 'Steam', target: `steam://rungameid/${data.appid}`, type: 'uri', installPath, appId: data.appid, localArtwork, artwork: `https://cdn.cloudflare.steamstatic.com/steam/apps/${data.appid}/library_600x900.jpg` });
       } catch { /* Skip one damaged manifest without discarding the library. */ }
     }
   }

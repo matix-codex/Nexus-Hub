@@ -1,6 +1,6 @@
 {
   "name": "nexus-hub",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "description": "Your second screen. Your command center.",
   "author": "Nexus Hub",
@@ -8,7 +8,7 @@
   "main": "electron/main.mjs",
   "scripts": {
     "dev": "npm run build:native && node scripts/dev.mjs",
-    "build:native": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-apphost.ps1",
+    "build:native": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-native.ps1",
     "dev:web": "vite --host 127.0.0.1",
     "build": "vite build",
     "start": "electron .",
@@ -30,7 +30,12 @@
     "extraResources": [
       {
         "from": "native",
-        "to": "native"
+        "to": "native",
+        "filter": [
+          "**/*",
+          "!webview2/**",
+          "!AppHost.*"
+        ]
       }
     ],
     "directories": {
@@ -42,7 +47,6 @@
       "icon": "assets/icon.ico"
     },
     "nsis": {
-      "include": "scripts/installer.nsh",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
@@ -53,6 +57,7 @@
   },
   "dependencies": {
     "lucide-react": "^1.40.0",
+    "openrgb-sdk": "0.6.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "systeminformation": "^5.33.8"

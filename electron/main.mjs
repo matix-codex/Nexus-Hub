@@ -1,16 +1,19 @@
-import { app, BrowserWindow, WebContentsView, ipcMain, screen, Menu, Tray, nativeImage, shell, dialog, globalShortcut, session, Notification } from 'electron';
+import { app, BrowserWindow, WebContentsView, ipcMain, screen, Menu, Tray, nativeImage, shell, dialog, globalShortcut, session, Notification, protocol, net } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
-import si from 'systeminformation';
 import { Store } from './store.mjs';
 import { DEFAULTS, SERVICES, LAUNCHERS, WIDGETS, safeWebUrl, validateSettings } from './config.mjs';
-import { NativeBridge, basicStats, gpuStats } from './native.mjs';
+import { NativeBridge, basicStats } from './native.mjs';
 import { scanGames, idFor } from './games.mjs';
 import { resolveDisplay, rememberDisplay, boundsForDisplay } from './displays.mjs';
-import { AppHost } from './app-host.mjs';
+import { Artwork } from './artwork.mjs';
+import { Hardware } from './hardware.mjs';
+import { RadioDirectory, station } from './radio.mjs';
+import { RGB } from './rgb.mjs';
+protocol.registerSchemesAsPrivileged([{ scheme: 'nexus-cover', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const testing = Boolean(process.env.NEXUS_TEST_DATA);
@@ -22,16 +25,17 @@ if (!hasLock) app.quit();
 let win, tray, store, native, quit = false, scanning = false, library = { games: [], startApps: [], warnings: [], scannedAt: null };
 let activeService = null, overlay = false, metrics = {}, networkSample = null;
 let dashboardWanted = true, positioning = false, repositionTimer;
-let spotifyHost;
+let desktop, artwork, hardware, rgb; let nativeApps = {}; let nativeOpening = null; let serviceGeneration = 0; let stopping = false;
+const radio = new RadioDirectory();
 const appPopups = new Map();
 const views = new Map();
 const timers = [];
 let scanPromise;
 const nativeDirectory = app.isPackaged ? path.join(process.resourcesPath, 'native') : path.join(directory, '..', 'native');
 const displays = () => screen.getAllDisplays().map((d, index) => ({ id: d.id, label: d.label || `Scherm ${index + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id }));
-const allGames = () => [...library.games, ...store.data.customGames];
+const allGames = () => [...library.games, ...store.data.customGames].map(game => artwork ? artwork.forGame(game) : game);
 const selectedDisplay = () => resolveDisplay(screen.getAllDisplays(), store.data.settings);
-const state = () => ({ ...store.data, library: { ...library, games: allGames(), scanning }, displays: displays(), displayTarget: { available: Boolean(selectedDisplay()), activeId: selectedDisplay()?.id ?? null, label: store.data.settings.displayIdentity?.label || 'Gekozen scherm' }, fullscreen: win?.isFullScreen() || false, overlay, services: SERVICES, launchers: LAUNCHERS, version: app.getVersion(), nativeReady: native?.ready || false });
+const state = () => ({ ...store.data, library: { ...library, games: allGames(), scanning }, displays: displays(), displayTarget: { available: Boolean(selectedDisplay()), activeId: selectedDisplay()?.id ?? null, label: store.data.settings.displayIdentity?.label || 'Gekozen scherm' }, fullscreen: win?.isFullScreen() || false, overlay, services: SERVICES, launchers: LAUNCHERS, nativeApps, version: app.getVersion(), nativeReady: native?.ready || false });
 const broadcast = () => { if (win && !win.isDestroyed()) win.webContents.send('state', state()); updateTray(); };
 const save = () => { store.save(); broadcast(); return state(); };
 function handle(channel, fn) {
@@ -44,7 +48,7 @@ async function scan() {
   if (scanPromise) return scanPromise;
   scanning = true; broadcast();
   scanPromise = (async () => {
-    try { library = await scanGames(nativeDirectory); await fs.writeFile(path.join(app.getPath('userData'), 'library.json'), JSON.stringify(library), 'utf8'); }
+    try { library = await scanGames(nativeDirectory); artwork.refresh(allGames(), broadcast).catch(() => {}); await fs.writeFile(path.join(app.getPath('userData'), 'library.json'), JSON.stringify(library), 'utf8'); }
     catch (error) { library.warnings = [error.message]; }
     finally { scanning = false; scanPromise = null; broadcast(); }
     return state();
@@ -70,7 +74,7 @@ async function launch(game) {
   store.data.recent = [{ id: game.id, at: Date.now() }, ...store.data.recent.filter(g => g.id !== game.id)].slice(0, 20);
   save();
 }
-function hideMain() { dashboardWanted = false; win?.hide(); for (const popup of appPopups.values()) if (!popup.isDestroyed()) popup.hide(); }
+function hideMain() { desktop?.request('hide').catch(() => {}); dashboardWanted = false; win?.hide(); for (const popup of appPopups.values()) if (!popup.isDestroyed()) popup.hide(); }
 function showMain() {
   dashboardWanted = true;
   if (!win || !selectedDisplay()) return;
@@ -78,7 +82,7 @@ function showMain() {
   const current = screen.getDisplayMatching(win.getBounds());
   if (current.id !== selectedDisplay().id) positionOnSelectedDisplay();
   win.setSkipTaskbar(true); win.show(); win.focus();
-  if (activeService === 'spotify') spotifyHost?.request('show').catch(() => {});
+  if (SERVICES[activeService]?.native) desktop?.request('show').catch(() => {});
   for (const [id, popup] of appPopups) if (id.startsWith(`${activeService}:`) && !popup.isDestroyed()) popup.show();
 }
 function positionOnSelectedDisplay() {
@@ -111,7 +115,8 @@ function toggleOverlay() {
 }
 function hideService() {
   if (activeService && views.has(activeService)) views.get(activeService).setVisible(false);
-  if (activeService === 'spotify') spotifyHost?.request('hide').catch(() => {});
+  if (SERVICES[activeService]?.native) desktop?.request('hide').catch(() => {});
+  serviceGeneration++;
   for (const popup of appPopups.values()) if (!popup.isDestroyed()) popup.hide();
   activeService = null;
 }
@@ -134,33 +139,44 @@ function updateTray() {
   ]));
 }
 function serviceEvent(id, data) { if (win && !win.isDestroyed() && !win.webContents.isDestroyed() && !quit) win.webContents.send('service:status', { id, ...data }); }
+async function launchNative(target) {
+  await new Promise((resolve, reject) => {
+    const child = spawn(path.join(process.env.SystemRoot, 'explorer.exe'), ['shell:AppsFolder\\' + target], { detached: true, stdio: 'ignore', windowsHide: true });
+    child.once('error', reject); child.once('spawn', () => { child.unref(); resolve(); });
+  });
+}
 async function openService(id) {
+  if (activeService === id && SERVICES[id]?.native) return nativeOpening;
+  const task = openServiceInternal(id); nativeOpening = task;
+  try { return await task; } finally { if (nativeOpening === task) nativeOpening = null; }
+}
+async function openServiceInternal(id) {
   const definition = serviceDefinition(id);
   if (!definition) throw new Error('Onbekende app.');
   hideService();
   activeService = id;
-  if (id === 'spotify') {
+  if (definition.native) {
+    const generation = serviceGeneration;
+    serviceEvent(id, { loading: true, error: null, native: true });
     try {
-      if (!spotifyHost) {
-        const handle = win.getNativeWindowHandle();
-        const parent = handle.length === 8 ? handle.readBigUInt64LE().toString() : String(handle.readUInt32LE());
-        const host = new AppHost(nativeDirectory, parent, path.join(app.getPath('userData'), 'apps', 'spotify'), testing);
-        spotifyHost = host;
-        if (testing) app.nexusTestHost = host;
-        host.on('status', data => {
-          if (quit || win.isDestroyed()) return;
-          if (data.shortcut === 'search') { hideService(); win.webContents.focus(); win.webContents.send('shortcut', 'search'); }
-          else if (['fullscreen', 'exit-fullscreen'].includes(data.shortcut)) {
-            win.setFullScreen(data.shortcut === 'fullscreen' ? !win.isFullScreen() : false);
-            store.data.settings.fullscreen = win.isFullScreen(); store.save(); broadcast();
-          } else serviceEvent('spotify', data);
-        });
-        host.on('exit', () => { if (spotifyHost === host) spotifyHost = null; serviceEvent('spotify', { loading: false, error: 'De app is gestopt. Klik op opnieuw laden.' }); });
+      if (!desktop?.ready) throw new Error('Windows-appverbinding start nog. Probeer het zo opnieuw.');
+      if (!nativeApps[id]?.installed) nativeApps = await desktop.request('inventory');
+      const target = nativeApps[id]?.appId;
+      if (!target || !/^[\w.!-]+$/.test(target)) throw new Error(definition.name + ' is niet geïnstalleerd. Installeer de Windows-app en probeer opnieuw.');
+      await launchNative(target);
+      const hwnd = win.getNativeWindowHandle();
+      const parent = hwnd.length === 8 ? hwnd.readBigUInt64LE().toString() : String(hwnd.readUInt32LE());
+      let lastError;
+      for (let attempt = 0; attempt < 20; attempt++) {
+        if (activeService !== id || serviceGeneration !== generation) return;
+        try {
+          await desktop.request('attach', { id, parent });
+          if (activeService !== id || serviceGeneration !== generation) { await desktop.request('hide'); return; }
+          serviceEvent(id, { loading: false, error: null, native: true }); broadcast(); return { id, engine: 'Windows' };
+        } catch (error) { lastError = error; await new Promise(resolve => setTimeout(resolve, 500)); }
       }
-      await spotifyHost.started;
-      if (activeService === id) await spotifyHost.request('show');
-      return { id, engine: 'WebView2' };
-    } catch (error) { serviceEvent(id, { loading: false, error: error.message }); throw error; }
+      throw lastError;
+    } catch (error) { serviceEvent(id, { loading: false, error: error.message, native: true }); throw error; }
   }
   let view = views.get(id);
   if (!view) {
@@ -220,6 +236,24 @@ async function openService(id) {
 function installHandlers() {
   handle('bootstrap', () => ({ state: state(), metrics }));
   handle('games:scan', scan);
+  handle('games:cover', async id => {
+    const game = allGames().find(g => g.id === id); if (!game) throw new Error('Onbekende game.');
+    const answer = await dialog.showOpenDialog(win, { title: 'Gamehoes kiezen', properties: ['openFile'], filters: [{ name: 'Afbeeldingen', extensions: ['jpg', 'jpeg', 'png', 'webp'] }] });
+    if (answer.canceled) return;
+    if ((await fs.stat(answer.filePaths[0])).size > 8388608) throw new Error('Kies een afbeelding kleiner dan 8 MB.');
+    const picture = nativeImage.createFromPath(answer.filePaths[0]); if (picture.isEmpty()) throw new Error('Deze afbeelding kan niet worden gelezen.');
+    await artwork.put(game, picture.resize({ width: 600 }).toJPEG(90), 'Eigen afbeelding'); broadcast();
+  });
+  handle('radio:search', query => radio.search(query));
+  handle('radio:favorite', value => {
+    const item = station(value); const list = store.data.radioFavorites;
+    store.data.radioFavorites = list.some(s => s.id === item.id) ? list.filter(s => s.id !== item.id) : [...list, item].slice(-200);
+    return save();
+  });
+  handle('rgb:status', () => rgb.status());
+  handle('rgb:apply', value => rgb.apply(value));
+  handle('rgb:open', id => rgb.open(id));
+  handle('rgb:install-msi', () => rgb.installMsi());
   handle('games:launch', id => launch(allGames().find(game => game.id === id)));
   handle('games:favorite', id => {
     if (!allGames().some(g => g.id === id)) throw new Error('Onbekende game.');
@@ -306,15 +340,22 @@ function installHandlers() {
     if (action === 'hide') { hideService(); return; }
     if (!definition) throw new Error('Onbekende app.');
     if (action === 'open') return openService(id);
+    if (definition.native) {
+      if (action === 'reload') { hideService(); return openService(id); }
+      if (action === 'external') {
+        await desktop.request('release', id); hideService();
+        if (!nativeApps[id]?.installed) nativeApps = await desktop.request('inventory');
+        const target = nativeApps[id]?.appId;
+        if (!target || !/^[\w.!-]+$/.test(target)) throw new Error(definition.name + ' is niet geïnstalleerd.');
+        return launchNative(target);
+      }
+      throw new Error('Beheer deze functie in de Windows-app zelf.');
+    }
     if (action === 'external') {
       if (definition.protocol && library.protocols?.[definition.protocol.split(':')[0]] === false) return shell.openExternal(definition.url);
       return shell.openExternal(definition.protocol || definition.url);
     }
     if (action === 'browser') return shell.openExternal(definition.url);
-    if (id === 'spotify' && ['reload', 'back', 'logout'].includes(action)) {
-      if (!spotifyHost) return openService(id);
-      return spotifyHost.request(action);
-    }
     if (action === 'reload') { const view = views.get(id); if (view) { view.setVisible(true); view.webContents.reload(); } else await openService(id); }
     if (action === 'back' && views.get(id)?.webContents.navigationHistory.canGoBack()) views.get(id).webContents.navigationHistory.goBack();
     if (action === 'logout' && views.has(id)) {
@@ -325,10 +366,10 @@ function installHandlers() {
   handle('service:bounds', bounds => {
     if (!activeService || !bounds) return;
     const view = views.get(activeService); const size = win.getContentBounds();
-    if ((view || activeService === 'spotify') && ['x', 'y', 'width', 'height'].every(k => Number.isFinite(bounds[k]))) {
+    if ((view || SERVICES[activeService]?.native) && ['x', 'y', 'width', 'height'].every(k => Number.isFinite(bounds[k]))) {
       const x = Math.max(0, Math.min(size.width - 1, Math.round(bounds.x))); const y = Math.max(60, Math.min(size.height - 1, Math.round(bounds.y)));
       const rect = { x, y, width: Math.max(1, Math.min(size.width - x, Math.round(bounds.width))), height: Math.max(1, Math.min(size.height - y, Math.round(bounds.height))) };
-      if (activeService === 'spotify') return spotifyHost?.request('bounds', { ...rect, parentWidth: size.width });
+      if (SERVICES[activeService]?.native) return desktop?.request('bounds', { ...rect, parentWidth: size.width });
       view.setBounds(rect);
     }
   });
@@ -372,6 +413,17 @@ function emitMetrics() { if (win && !win.isDestroyed()) win.webContents.send('me
 
 if (hasLock) app.whenReady().then(async () => {
   store = new Store(app.getPath('userData'));
+  if (!store.data.feature110) { store.data.settings.artwork = true; store.data.feature110 = true; store.save(); }
+  artwork = new Artwork(app.getPath('userData')); await artwork.init();
+  protocol.handle('nexus-cover', request => {
+    const url = new URL(request.url); const file = url.pathname.slice(1);
+    if (url.hostname !== 'local' || !/^[a-f0-9]{64}\.jpg$/.test(file)) return new Response('Not found', { status: 404 });
+    return net.fetch(new URL('file:///' + path.join(artwork.directory, file).replaceAll('\\', '/')).href);
+  });
+  desktop = new NativeBridge(nativeDirectory, 'desktop.ps1'); desktop.on('ready', async () => { try { nativeApps = await desktop.request('inventory'); broadcast(); } catch {} }); desktop.start();
+  if (testing) app.nexusTestDesktop = desktop;
+  rgb = new RGB(nativeDirectory, app.getPath('userData'));
+  hardware = new Hardware(nativeDirectory);
   try { library = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'library.json'), 'utf8')); } catch {}
   native = new NativeBridge(nativeDirectory); native.on('ready', () => { nativeSnapshot(); broadcast(); }); native.start();
   const attached = screen.getAllDisplays();
@@ -420,15 +472,20 @@ if (hasLock) app.whenReady().then(async () => {
     if (store.data.timer.endsAt && Date.now() >= store.data.timer.endsAt) { store.data.timer = { ...store.data.timer, endsAt: null, remaining: 0 }; if (Notification.isSupported()) new Notification({ title: 'Tijd voor een pauze', body: 'Je Nexus-focussessie is afgerond.' }).show(); save(); }
   }, 2000));
   timers.push(setInterval(nativeSnapshot, 2500));
-  let gpuBusy = false;
-  const updateGpu = async () => { if (gpuBusy) return; gpuBusy = true; try { const gpu = await gpuStats(); if (gpu) metrics.gpu = gpu; } finally { gpuBusy = false; } };
-  updateGpu(); timers.push(setInterval(updateGpu, 8000));
-  si.graphics().then(data => { if (!metrics.gpu) metrics.gpu = { name: data.controllers?.[0]?.model || 'GPU', usage: null, temperature: null }; }).catch(() => {});
-  si.fsSize().then(data => { metrics.disks = data.filter(d => d.size > 0).map(d => ({ name: d.mount, size: d.size, used: d.used, percent: d.use })); }).catch(() => {});
+  let hardwareBusy = false;
+  const updateHardware = async () => {
+    if (hardwareBusy) return; hardwareBusy = true;
+    try { const data = await hardware.snapshot(); metrics.hardware = data; metrics.gpu = data.gpus.find(g => g.usage != null) || data.gpus[0]; metrics.disks = data.disks; emitMetrics(); }
+    catch {} finally { hardwareBusy = false; }
+  };
+  hardware.init().then(updateHardware).catch(() => {}); timers.push(setInterval(updateHardware, 12000));
+  artwork.refresh(allGames(), broadcast).catch(() => {});
   if (!testing || process.env.NEXUS_TEST_SCAN === '1') scan();
 });
 app.on('second-instance', showMain);
 app.on('activate', showMain);
-app.on('before-quit', () => { quit = true; clearTimeout(repositionTimer); timers.forEach(clearInterval); native?.stop(); spotifyHost?.stop(); for (const view of views.values()) view.webContents.close(); });
+app.on('before-quit', event => {
+  if (!stopping && desktop?.ready) { event.preventDefault(); stopping = true; desktop.request('release-all').catch(() => {}).finally(() => app.quit()); return; }
+  quit = true; clearTimeout(repositionTimer); timers.forEach(clearInterval); native?.stop(); desktop?.stop(); rgb?.stop(); for (const view of views.values()) view.webContents.close(); });
 app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => app.quit());
