@@ -2,7 +2,7 @@ export const SERVICES = {
   discord: { native: true, name: 'Discord', url: 'https://discord.com/app', protocol: 'discord://', color: '#8d8aff' },
   whatsapp: { native: true, name: 'WhatsApp', url: 'https://web.whatsapp.com/', protocol: 'whatsapp://', color: '#59d49b' },
   spotify: { native: true, name: 'Spotify', url: 'https://open.spotify.com/', protocol: 'spotify:', color: '#76de9b' },
-  xbox: { name: 'Xbox', url: 'https://www.xbox.com/play', protocol: 'xbox:', color: '#87c978' },
+  xbox: { native: true, name: 'Xbox', url: 'https://www.xbox.com/play', protocol: 'xbox:', color: '#87c978' },
 };
 export const LAUNCHERS = {
   Steam: 'steam://open/main', Epic: 'com.epicgames.launcher://ue/library', Xbox: 'xbox:',

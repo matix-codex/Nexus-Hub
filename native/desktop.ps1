@@ -12,15 +12,15 @@ try {
         'inventory' {
           $apps = @(Get-StartApps)
           $result = @{}
-          foreach ($id in @('discord', 'whatsapp', 'spotify')) {
-            $found = $apps | Where-Object { $_.Name -match "^$id" } | Select-Object -First 1
+          foreach ($id in @('discord', 'whatsapp', 'spotify', 'xbox')) {
+            $found = if ($id -eq 'xbox') { $apps | Where-Object { $_.AppID -like 'Microsoft.GamingApp_*!Microsoft.Xbox.App' } | Select-Object -First 1 } else { $apps | Where-Object { $_.Name -match "^$id" } | Select-Object -First 1 }
             $result[$id] = @{ installed = ($null -ne $found); appId = $found.AppID }
           }
         }
         'state' { $result = [DesktopApps]::State() }
         'attach' { $result = [DesktopApps]::Attach([string]$value.id, [long]$value.parent) }
         'bounds' { [DesktopApps]::Bounds([int]$value.x, [int]$value.y, [int]$value.width, [int]$value.height, [int]$value.parentWidth) }
-        'hide' { [DesktopApps]::Hide() }
+        'hide' { [DesktopApps]::Hide([string]$value) }
         'show' { [DesktopApps]::Show() }
         'release' { [DesktopApps]::Release([string]$value) }
         'release-all' { [DesktopApps]::ReleaseAll() }

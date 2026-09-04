@@ -4,7 +4,7 @@ Een Windows-dashboard voor je tweede scherm met games, Windows-apps, hardwaremet
 
 ## Installeren
 
-Download **Nexus-Hub-Setup-1.3.0.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest), of werk vanuit Nexus 1.2.0 bij via **Instellingen → Nexus-updates**. Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
+Download **Nexus-Hub-Setup-1.3.1.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest), of werk vanuit Nexus 1.2.0 bij via **Instellingen → Nexus-updates**. Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
 
 Kies in **Instellingen** je extra beeldscherm en schakel **Volledig scherm** in. Nexus bewaart de keuze, ook na herstart en voor de compacte overlay. Als het scherm wordt losgekoppeld, wacht Nexus verborgen op datzelfde scherm. Via **Vast scherm** in het systeemvak kun je een ander scherm kiezen.
 
@@ -25,7 +25,7 @@ Kies **Update downloaden** en daarna **Installeren en herstarten**. **Later** st
 
 Onder **Instellingen → Nexus-updates** staan de huidige versie, laatste controle en een handmatige controleknop. Automatisch controleren kun je daar uitschakelen. Bij verbindings- of downloadproblemen blijft Nexus bruikbaar en kun je opnieuw proberen. Een download die op de achtergrond afloopt, vraagt daarna om installatie.
 
-**Eenmalige overstap:** versie 1.1.0 en ouder hebben nog geen updater. Installeer 1.3.0 één keer met de installer; volgende versies worden vanuit Nexus aangeboden.
+**Eenmalige overstap:** versie 1.1.0 en ouder hebben nog geen updater. Installeer 1.3.1 één keer met de installer; volgende versies worden vanuit Nexus aangeboden.
 
 ## Games en hoezen
 
@@ -36,15 +36,15 @@ Onder **Instellingen → Nexus-updates** staan de huidige versie, laatste contro
 
 ## Echte Windows-apps
 
-Discord, WhatsApp en Spotify hebben elk een eigen dashboardwidget. **Open op dashboard** toont de Windows-app in de appwerkruimte, met tabs voor de drie apps. Sluit de werkruimte om terug te keren naar je widgets, of open de app via de zijbalk. De appwerkruimte houdt het native venster op een vaste plek; de widgets komen terug zodra je de werkruimte sluit.
+Discord, WhatsApp en Spotify hebben elk een eigen dashboardwidget. **Open op dashboard** toont de Windows-app in de appwerkruimte, met tabs voor Discord, WhatsApp, Spotify en Xbox. Sluit de werkruimte om terug te keren naar je widgets, of open de app via de zijbalk. De appwerkruimte houdt het native venster op een vaste plek; de widgets komen terug zodra je de werkruimte sluit.
 
-**WhatsApp, Discord en Spotify gebruiken de geïnstalleerde Windows-app.** Er wordt voor deze drie apps geen webpagina of WebView2-speler geopend. Hun bestaande aanmelding, gesprekken, voice- en muziekfuncties blijven in de oorspronkelijke app.
+**WhatsApp, Discord, Spotify en Xbox gebruiken de geïnstalleerde Windows-app.** Er wordt voor deze vier apps geen webpagina of WebView2-speler geopend. Hun bestaande aanmelding, gesprekken, voice- en muziekfuncties blijven in de oorspronkelijke app.
 
 Nexus plaatst het native appvenster op het geselecteerde scherm, boven de app-ruimte in Nexus. Tijdens beheer verdwijnt dat venster uit de taakbalk. Bij paginawisseling wordt het verborgen; audio en gesprekken blijven doorlopen. Bij afsluiten zet Nexus de oorspronkelijke vensterpositie en taakbalkstijl terug. **Los openen** geeft het venster terug aan Windows.
 
 De apps behouden hun eigen proces en eventuele eigen titelbalk. Dit is vensterbeheer, geen aangepaste kopie van hun interface. Minimale venstergrootte, app-updates, afzonderlijke pop-ups en verschillen in beheerdersrechten kunnen de plaatsing beperken. Bij een fout biedt Nexus opnieuw plaatsen en los openen aan. Nexus leest geen wachtwoorden, tokens of chatgeschiedenis. Aanmelden en uitloggen doe je in de Windows-app.
 
-Xbox opent de Xbox-desktopapp; Cloud Gaming kan in de browser worden geopend. Eigen HTTPS-webwidgets blijven in afzonderlijke sandboxvensters zonder Node-toegang of Nexus-preload.
+Xbox opent binnen de Nexus-appwerkruimte; Cloud Gaming kan met de aparte knop in de browser worden geopend. Eigen HTTPS-webwidgets blijven in afzonderlijke sandboxvensters zonder Node-toegang of Nexus-preload.
 
 ## Systeemprestaties
 
@@ -111,7 +111,7 @@ De installer heeft geen uitgeverscertificaat. De release bevat een SHA-256-besta
 
 ## Ontwikkelen en testen
 
-Vereist Node.js 22.12+ of 24+, Windows PowerShell 5.1 en .NET Framework 4.8. C#-bridges worden met de Windows Framework-compiler gebouwd; WebView2 is niet meer nodig voor de drie Windows-apps.
+Vereist Node.js 22.12+ of 24+, Windows PowerShell 5.1 en .NET Framework 4.8. C#-bridges worden met de Windows Framework-compiler gebouwd; WebView2 is niet nodig voor de vier Windows-apps.
 
 1. npm ci
 2. npm run dev
@@ -120,9 +120,10 @@ Vereist Node.js 22.12+ of 24+, Windows PowerShell 5.1 en .NET Framework 4.8. C#-
 5. npm run test:desktop
 6. node scripts/update-smoke.mjs
 7. node scripts/features-smoke.mjs (NEXUS_TEST_NATIVE=1 activeert de native-appcontroles)
-8. node scripts/updater-smoke.mjs
-9. node scripts/store-smoke.mjs
-10. npm run dist
+8. node scripts/native-apps-smoke.mjs
+9. node scripts/updater-smoke.mjs
+10. node scripts/store-smoke.mjs
+11. npm run dist
 
 Voor de store-smoketest: clone `https://github.com/matix-codex/Nexus-Store.git` naar de lokale map `app-store/` in dit project. Dit blijft een aparte Git-repository. De test controleert downloads, geïsoleerde widgets, opslag, thema's en de geïntegreerde mediawidget.
 

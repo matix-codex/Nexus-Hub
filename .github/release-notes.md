@@ -1,18 +1,14 @@
-Nexus Hub 1.3.0 voor Windows 10/11 x64.
+Nexus Hub 1.3.1 voor Windows 10/11 x64.
 
-Werk bij vanuit **Nexus → Instellingen → Nexus-updates**, of download **Nexus-Hub-Setup-1.3.0.exe**. Je instellingen, games, notities en vaste schermkeuze blijven behouden.
+Werk bij vanuit **Nexus → Instellingen → Nexus-updates**, of download **Nexus-Hub-Setup-1.3.1.exe**. Je instellingen, games, storepakketten, notities en vaste schermkeuze blijven behouden.
 
-- **Eén mediawidget:** Spotify, internetradio en Windows-media met bronkeuze, afspeelbediening en radiofavorieten. Bestaande losse radiowidgets worden samengevoegd.
-- **Widgets voor Discord, WhatsApp en Spotify:** open de echte Windows-app vanuit je dashboard in de Nexus-appwerkruimte. Je bestaande aanmelding blijft bij de Windows-app.
-- **RGB-schema's:** Statisch, Rainbow, Wave, Breathing en Color Cycle, met helderheid en snelheid. Per led via iCUE/OpenRGB; per beschikbare zone via MSI. Effecten lopen zolang Nexus actief is.
-- **Nexus Store:** zoeken, categorieën, installeren, verwijderen, toevoegen aan dashboard en updates per pakket.
-- **12 uitbreidingen:** World Clock, Focus List, Quick Calc, Countdown, Session Stopwatch, Breathing Space, Wikipedia, Twitch, Obsidian, Ocean Blue, Sunset en Rose Quartz.
-- **Aparte GitHub-store:** https://github.com/matix-codex/Nexus-Store — pakketten hebben hun eigen versies en checksums en worden bijgewerkt zonder een nieuwe Nexus-installer.
-- Sandbox voor lokale uitbreidingen, eigen lokale pakketopslag en behoud van de werkende versie bij een downloadfout.
-- Aangepaste dashboardindeling voor brede 2560×720-schermen, met behoud van systeemvakbediening en monitorvergrendeling.
+- **Spotify werkt met Altijd op de voorgrond:** het beheerde appvenster blijft boven Nexus en ontvangt muis- en toetsenbordinvoer.
+- **Xbox in Nexus:** de geïnstalleerde Xbox-app opent nu in dezelfde appwerkruimte als Spotify, Discord en WhatsApp. Cloud Gaming blijft via een aparte knop beschikbaar.
+- **Betrouwbaarder wisselen:** vertraagde Windows-appactivatie kan een eerder gesloten appvenster niet opnieuw boven de huidige app of een Nexus-dialoog plaatsen.
+- **Verborgen Windows-vensters:** Nexus negeert cloaked Xbox-achtergrondvensters en gebruikt de interactieve interface.
+- **Opstarten:** een appklik wacht kort op de Windows-appbridge, in plaats van direct een tijdelijke verbindingsfout te tonen.
+- De aangepaste topmost-status en taakbalkstijl van Windows-apps worden bij losmaken en afsluiten hersteld.
 
-De Windows-apps behouden hun eigen interface en officiële updater. RGB vereist compatibele fabrikantsoftware; op de ontwikkelpc reageert de MSI-SDK niet en is OpenRGB niet actief. Nexus meldt die beperkingen per bron.
+De automatische tests openen Spotify, Discord, WhatsApp en Xbox echt en controleren voorgrond aan/uit, hit-tests, fullscreen, dialoogvensters, snel wisselen en herstel bij afsluiten.
 
-**Vanaf 1.2.0 kun je deze release rechtstreeks vanuit Nexus installeren.** Gebruikers van oudere versies voeren de installer één keer handmatig uit.
-
-Deze build heeft geen uitgeverscertificaat. **SHA256-1.3.0.txt** bevat de checksum. **latest.yml** en **.exe.blockmap** worden door de updater gebruikt.
+Deze build heeft geen uitgeverscertificaat. **SHA256-1.3.1.txt** bevat de checksum. **latest.yml** en **.exe.blockmap** worden door de updater gebruikt.

@@ -18,6 +18,8 @@ public static class DesktopApps {
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hwnd);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
   [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr hwnd, ref Point point);
@@ -29,12 +31,14 @@ public static class DesktopApps {
   [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hwnd, int cmd);
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out int value, int size);
   class Managed { public string Id; public IntPtr Window; public Placement Original; public IntPtr Style; public bool WasVisible; }
   static readonly Dictionary<string, Managed> windows = new Dictionary<string, Managed>();
   static readonly object gate = new object(); static IntPtr parent; static string active; static bool visible;
   static int x = 90, y = 150, width = 900, height = 650, parentWidth = 1100;
   static Timer timer;
   static bool Match(IntPtr hwnd, HashSet<uint> processes) { uint pid; GetWindowThreadProcessId(hwnd, out pid); return processes.Contains(pid); }
+  static bool IsCloaked(IntPtr hwnd) { int value; return DwmGetWindowAttribute(hwnd, 14, out value, 4) == 0 && value != 0; }
   public static string Attach(string id, long host) {
     lock (gate) {
       Hide(); parent = new IntPtr(host);
@@ -42,11 +46,12 @@ public static class DesktopApps {
       if (windows.TryGetValue(id, out item) && !IsWindow(item.Window)) windows.Remove(id);
       if (!windows.TryGetValue(id, out item)) {
         var processes = new HashSet<uint>();
-        foreach (string name in id == "whatsapp" ? new[] { "WhatsApp", "WhatsApp.Root" } : new[] { id })
+        foreach (string name in id == "whatsapp" ? new[] { "WhatsApp", "WhatsApp.Root" } : id == "xbox" ? new[] { "XboxPcApp" } : new[] { id })
           foreach (Process process in Process.GetProcessesByName(name)) { using (process) { try { processes.Add((uint)process.Id); } catch {} } }
         IntPtr found = IntPtr.Zero; long area = 0; bool foundVisible = false;
         EnumWindows(delegate(IntPtr hwnd, IntPtr data) {
           bool isVisible = IsWindowVisible(hwnd);
+          if (IsCloaked(hwnd)) return true;
           // A tray app can keep its real main window hidden after activation.
           // Hidden message/helper windows have no caption or resize frame.
           if (!isVisible && (GetWindowLongPtr(hwnd, -16).ToInt64() & 0xC40000L) == 0) return true;
@@ -73,27 +78,64 @@ public static class DesktopApps {
   }
   public static void Bounds(int left, int top, int w, int h, int pw) { lock (gate) { x = left; y = top; width = w; height = h; parentWidth = Math.Max(1, pw); Tick(); } }
   public static void Hide() { lock (gate) { visible = false; foreach (Managed item in windows.Values) if (IsWindow(item.Window)) ShowWindow(item.Window, 0); } }
+  public static void Hide(string id) { lock (gate) { if (String.IsNullOrEmpty(id) || active == id) Hide(); } }
   public static void Show() { lock (gate) { visible = true; Tick(); } }
-  public static object State() { lock (gate) { var data = new List<object>(); foreach (Managed item in windows.Values) { Rect rect; GetWindowRect(item.Window, out rect); data.Add(new { id = item.Id, alive = IsWindow(item.Window), visible = IsWindowVisible(item.Window), x = rect.Left, y = rect.Top, width = rect.Right - rect.Left, height = rect.Bottom - rect.Top, toolWindow = (GetWindowLongPtr(item.Window, -20).ToInt64() & 0x80) != 0 }); } return data; } }
+  public static object State() { lock (gate) {
+    IntPtr previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
+    try {
+      var data = new List<object>();
+      foreach (Managed item in windows.Values) {
+        Rect rect; GetWindowRect(item.Window, out rect);
+        Point center = new Point { X = (rect.Left + rect.Right) / 2, Y = (rect.Top + rect.Bottom) / 2 };
+        IntPtr hit = GetAncestor(WindowFromPoint(center), 2);
+        uint targetPid, hitPid; GetWindowThreadProcessId(item.Window, out targetPid); GetWindowThreadProcessId(hit, out hitPid);
+        data.Add(new { id = item.Id, alive = IsWindow(item.Window), visible = IsWindowVisible(item.Window), x = rect.Left, y = rect.Top, width = rect.Right - rect.Left, height = rect.Bottom - rect.Top,
+          toolWindow = (GetWindowLongPtr(item.Window, -20).ToInt64() & 0x80) != 0,
+          topmost = (GetWindowLongPtr(item.Window, -20).ToInt64() & 8) != 0,
+          interactive = hit == item.Window || (targetPid != 0 && targetPid == hitPid) });
+      }
+      return data;
+    } finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
+  } }
   static void Tick() {
     lock (gate) {
       if (parent == IntPtr.Zero) return;
       if (!IsWindow(parent)) { ReleaseAll(); return; }
+      bool hostVisible = visible && IsWindowVisible(parent) && !IsIconic(parent);
+      // Delayed activation from a launcher must not resurface a previous app
+      // over the current workspace or a Nexus dialog.
+      foreach (Managed other in windows.Values)
+        if ((!hostVisible || other.Id != active) && IsWindow(other.Window) && IsWindowVisible(other.Window)) ShowWindow(other.Window, 0);
       Managed item; if (active == null || !windows.TryGetValue(active, out item) || !IsWindow(item.Window)) return;
-      if (!visible || !IsWindowVisible(parent) || IsIconic(parent)) { ShowWindow(item.Window, 0); return; }
+      if (!hostVisible) return;
       IntPtr previous = SetThreadDpiAwarenessContext(new IntPtr(-4));
       try {
         Rect client; GetClientRect(parent, out client); Point origin = new Point(); ClientToScreen(parent, ref origin);
         double scale = (double)(client.Right - client.Left) / parentWidth;
         IntPtr foreground = GetForegroundWindow(); bool hostFocus = foreground == parent || foreground == item.Window;
-        SetWindowPos(item.Window, IntPtr.Zero, origin.X + (int)(x * scale), origin.Y + (int)(y * scale), Math.Max(100, (int)(width * scale)), Math.Max(100, (int)(height * scale)), (uint)(0x10 | 0x40 | (hostFocus ? 0 : 0x4)));
+        bool hostTopmost = (GetWindowLongPtr(parent, -20).ToInt64() & 8) != 0;
+        bool appTopmost = (GetWindowLongPtr(item.Window, -20).ToInt64() & 8) != 0;
+        // HWND_TOP cannot place an ordinary window above a topmost Nexus window.
+        // Match the host's band, and remove the temporary topmost status when disabled.
+        // HWND_TOPMOST changes the band. Once both windows are topmost,
+        // HWND_TOP moves the managed app to the front of that band.
+        IntPtr after = hostTopmost ? (appTopmost ? IntPtr.Zero : new IntPtr(-1)) : appTopmost ? new IntPtr(-2) : IntPtr.Zero;
+        bool changeOrder = hostTopmost || appTopmost || hostFocus;
+        SetWindowPos(item.Window, after, origin.X + (int)(x * scale), origin.Y + (int)(y * scale), Math.Max(100, (int)(width * scale)), Math.Max(100, (int)(height * scale)), (uint)(0x10 | 0x40 | 0x200 | (changeOrder ? 0 : 0x4)));
+        // A click on the frameless host brings Nexus above the separately owned
+        // app window. Return focus to the active app after Nexus handled that click.
+        if (hostFocus) SetForegroundWindow(item.Window);
       } finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
     }
   }
   public static void Release(string id) {
     lock (gate) {
       Managed item; if (!windows.TryGetValue(id, out item)) return;
-      if (IsWindow(item.Window)) { SetWindowLongPtr(item.Window, -20, item.Style); SetWindowPlacement(item.Window, ref item.Original); ShowWindow(item.Window, item.WasVisible ? 8 : 0); }
+      if (IsWindow(item.Window)) {
+        SetWindowLongPtr(item.Window, -20, item.Style);
+        SetWindowPos(item.Window, new IntPtr((item.Style.ToInt64() & 8) != 0 ? -1 : -2), 0, 0, 0, 0, 0x1 | 0x2 | 0x10 | 0x20 | 0x200);
+        SetWindowPlacement(item.Window, ref item.Original); ShowWindow(item.Window, item.WasVisible ? 8 : 0);
+      }
       windows.Remove(id); if (active == id) active = null;
     }
   }

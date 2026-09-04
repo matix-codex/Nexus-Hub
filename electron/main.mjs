@@ -38,7 +38,7 @@ const nativeDirectory = app.isPackaged ? path.join(process.resourcesPath, 'nativ
 const displays = () => screen.getAllDisplays().map((d, index) => ({ id: d.id, label: d.label || `Scherm ${index + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id }));
 const allGames = () => [...library.games, ...store.data.customGames].map(game => artwork ? artwork.forGame(game) : game);
 const selectedDisplay = () => resolveDisplay(screen.getAllDisplays(), store.data.settings);
-const state = () => ({ ...store.data, updates: updates?.snapshot(), library: { ...library, games: allGames(), scanning }, displays: displays(), displayTarget: { available: Boolean(selectedDisplay()), activeId: selectedDisplay()?.id ?? null, label: store.data.settings.displayIdentity?.label || 'Gekozen scherm' }, fullscreen: win?.isFullScreen() || false, overlay, services: SERVICES, launchers: LAUNCHERS, nativeApps, version: app.getVersion(), nativeReady: native?.ready || false });
+const state = () => ({ ...store.data, updates: updates?.snapshot(), library: { ...library, games: allGames(), scanning }, displays: displays(), displayTarget: { available: Boolean(selectedDisplay()), activeId: selectedDisplay()?.id ?? null, label: store.data.settings.displayIdentity?.label || 'Gekozen scherm' }, fullscreen: win?.isFullScreen() || false, overlay, services: SERVICES, launchers: LAUNCHERS, nativeApps, version: app.getVersion(), nativeReady: native?.ready || false, desktopReady: desktop?.ready || false });
 const broadcast = () => { if (win && !win.isDestroyed()) win.webContents.send('state', state()); updateTray(); };
 const save = () => { store.save(); broadcast(); return state(); };
 function handle(channel, fn) {
@@ -113,12 +113,12 @@ function toggleOverlay() {
   overlay = !overlay;
   positionOnSelectedDisplay();
   showMain();
-  win.setAlwaysOnTop(overlay || store.data.settings.alwaysOnTop, 'floating');
+  win.setAlwaysOnTop(overlay || store.data.settings.alwaysOnTop, 'screen-saver');
   broadcast();
 }
 function hideService() {
   if (activeService && views.has(activeService)) views.get(activeService).setVisible(false);
-  if (SERVICES[activeService]?.native) desktop?.request('hide').catch(() => {});
+  if (SERVICES[activeService]?.native) desktop?.request('hide', activeService).catch(() => {});
   serviceGeneration++;
   for (const popup of appPopups.values()) if (!popup.isDestroyed()) popup.hide();
   activeService = null;
@@ -164,21 +164,32 @@ async function openServiceInternal(id) {
     const generation = serviceGeneration;
     serviceEvent(id, { loading: true, error: null, native: true });
     try {
-      if (!desktop?.ready) throw new Error('Windows-appverbinding start nog. Probeer het zo opnieuw.');
+      if (!desktop?.ready) await new Promise((resolve, reject) => {
+        const ready = () => { clearTimeout(timeout); resolve(); };
+        const timeout = setTimeout(() => { desktop?.off('ready', ready); reject(new Error('Windows-appverbinding kon niet worden gestart. Probeer het opnieuw.')); }, 12000);
+        desktop?.once('ready', ready);
+        if (desktop?.ready) { desktop.off('ready', ready); ready(); }
+      });
       if (!nativeApps[id]?.installed) nativeApps = await desktop.request('inventory');
       const target = nativeApps[id]?.appId;
       if (!target || !/^[\w.!-]+$/.test(target)) throw new Error(definition.name + ' is niet geïnstalleerd. Installeer de Windows-app en probeer opnieuw.');
-      await launchNative(target);
       const hwnd = win.getNativeWindowHandle();
       const parent = hwnd.length === 8 ? hwnd.readBigUInt64LE().toString() : String(hwnd.readUInt32LE());
-      let lastError;
+      let lastError, launched = false;
       for (let attempt = 0; attempt < 20; attempt++) {
         if (activeService !== id || serviceGeneration !== generation) return;
         try {
           await desktop.request('attach', { id, parent });
-          if (activeService !== id || serviceGeneration !== generation) { await desktop.request('hide'); return; }
+          if (activeService !== id || serviceGeneration !== generation) { await desktop.request('hide', id); return; }
           serviceEvent(id, { loading: false, error: null, native: true }); broadcast(); return { id, engine: 'Windows' };
-        } catch (error) { lastError = error; await new Promise(resolve => setTimeout(resolve, 500)); }
+        } catch (error) {
+          lastError = error;
+          if (activeService !== id || serviceGeneration !== generation) return;
+          // Reuse an existing window before launching. Repeated Windows activation
+          // can otherwise resurface Spotify/Discord after navigation or a dialog.
+          if (!launched) { await launchNative(target); launched = true; }
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
       }
       throw lastError;
     } catch (error) { serviceEvent(id, { loading: false, error: error.message, native: true }); throw error; }
@@ -311,7 +322,9 @@ function installHandlers() {
     Object.assign(store.data.settings, settings);
     if ('theme' in settings) store.data.settings.storeTheme=null;
     if ('displayId' in settings || 'fullscreen' in settings) { overlay = false; positionOnSelectedDisplay(); }
-    if ('alwaysOnTop' in settings) win.setAlwaysOnTop(settings.alwaysOnTop);
+    // Electron's floating level moves behind the taskbar and can lose TOPMOST
+    // when Windows makes the taskbar non-topmost during fullscreen.
+    if ('alwaysOnTop' in settings) win.setAlwaysOnTop(overlay || settings.alwaysOnTop, 'screen-saver');
     if ('autostart' in settings && app.isPackaged) app.setLoginItemSettings({ openAtLogin: settings.autostart, path: app.getPath('exe') });
     return save();
   });
@@ -363,9 +376,10 @@ function installHandlers() {
   });
   handle('service:action', async (action, id) => {
     const definition = serviceDefinition(id);
-    if (action === 'hide') { hideService(); return; }
+    if (action === 'hide') { if (!id || activeService === id) hideService(); return; }
     if (!definition) throw new Error('Onbekende app.');
     if (action === 'open') return openService(id);
+    if (action === 'browser' && id === 'xbox') return shell.openExternal(definition.url);
     if (definition.native) {
       if (action === 'reload') { hideService(); return openService(id); }
       if (action === 'external') {
@@ -532,7 +546,7 @@ if (hasLock) app.whenReady().then(async () => {
   installHandlers();
   if (devURL) await win.loadURL(devURL); else await win.loadFile(path.join(directory, '..', 'dist', 'index.html'));
   if (selected && store.data.settings.fullscreen) win.setFullScreen(true);
-  win.setAlwaysOnTop(store.data.settings.alwaysOnTop); if (selected) win.show();
+  win.setAlwaysOnTop(store.data.settings.alwaysOnTop, 'screen-saver'); if (selected) win.show();
   const trayImage = nativeImage.createFromPath(path.join(directory, '..', 'assets', 'icon.png')).resize({ width: 32, height: 32 });
   tray = new Tray(trayImage); tray.setToolTip('Nexus Hub · Ctrl+Shift+Space');
   updateTray();
