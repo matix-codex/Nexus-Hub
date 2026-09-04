@@ -77,6 +77,5 @@ npm run dist           # Windows-installer + direct uitvoerbare map
 - `tests/`: gerichte tests met tijdelijke game-installaties.
 - `scripts/smoke.mjs`: Electron-integratiecontrole en screenshots in `artifacts/`.
 
-De vormgeving is een eigen implementatie. Er is geen broncode uit Xenon overgenomen. Referentie: https://xenon-app.com/. Native webvensters volgen https://www.electronjs.org/docs/latest/api/web-contents-view en https://www.electronjs.org/docs/latest/tutorial/security.
 
 
