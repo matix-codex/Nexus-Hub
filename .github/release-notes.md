@@ -1,14 +1,13 @@
-Nexus Hub 1.3.1 voor Windows 10/11 x64.
+Nexus Hub 1.4.0 voor Windows 10/11 x64.
 
-Werk bij vanuit **Nexus → Instellingen → Nexus-updates**, of download **Nexus-Hub-Setup-1.3.1.exe**. Je instellingen, games, storepakketten, notities en vaste schermkeuze blijven behouden.
+Werk bij vanuit **Nexus → Instellingen → Nexus-updates**, of download **Nexus-Hub-Setup-1.4.0.exe**. Je instellingen, games, storepakketten, notities en vaste schermkeuze blijven behouden.
 
-- **Spotify werkt met Altijd op de voorgrond:** het beheerde appvenster blijft boven Nexus en ontvangt muis- en toetsenbordinvoer.
-- **Xbox in Nexus:** de geïnstalleerde Xbox-app opent nu in dezelfde appwerkruimte als Spotify, Discord en WhatsApp. Cloud Gaming blijft via een aparte knop beschikbaar.
-- **Betrouwbaarder wisselen:** vertraagde Windows-appactivatie kan een eerder gesloten appvenster niet opnieuw boven de huidige app of een Nexus-dialoog plaatsen.
-- **Verborgen Windows-vensters:** Nexus negeert cloaked Xbox-achtergrondvensters en gebruikt de interactieve interface.
-- **Opstarten:** een appklik wacht kort op de Windows-appbridge, in plaats van direct een tijdelijke verbindingsfout te tonen.
-- De aangepaste topmost-status en taakbalkstijl van Windows-apps worden bij losmaken en afsluiten hersteld.
+- **Discord-berichtenwidget:** klap de Discord-kaart uit om je echte servers en gesprekken in het dashboard te zien en direct te reageren.
+- **WhatsApp-berichtenwidget:** lees gesprekken en typ antwoorden rechtstreeks in de officiële Windows-app binnen de dashboardkaart.
+- De rest van het dashboard blijft zichtbaar naast de actieve berichtenwidget. Een sluitknop klapt de kaart in; volledig openen en los openen blijven beschikbaar.
+- Nexus pauzeert het beheerde appvenster bij dialogen en zet het daarna veilig terug. Een oude widgetinstantie kan een nieuw appvenster niet verbergen of verplaatsen.
+- Chatinhoud, wachtwoorden en tokens worden niet door Nexus gelezen of opgeslagen. Discord en WhatsApp tonen en verzenden de berichten zelf.
 
-De automatische tests openen Spotify, Discord, WhatsApp en Xbox echt en controleren voorgrond aan/uit, hit-tests, fullscreen, dialoogvensters, snel wisselen en herstel bij afsluiten.
+De automatische tests openen Spotify, Discord, WhatsApp en Xbox echt. Voor de nieuwe widgets controleren ze zichtbaarheid, afmetingen, hit-tests, dialoogherstel en veilig sluiten, zonder berichten te versturen of chatinhoud uit te lezen.
 
-Deze build heeft geen uitgeverscertificaat. **SHA256-1.3.1.txt** bevat de checksum. **latest.yml** en **.exe.blockmap** worden door de updater gebruikt.
+Deze build heeft geen uitgeverscertificaat. **SHA256-1.4.0.txt** bevat de checksum. **latest.yml** en **.exe.blockmap** worden door de updater gebruikt.

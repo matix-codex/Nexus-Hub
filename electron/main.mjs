@@ -26,7 +26,7 @@ const devURL = !app.isPackaged && process.env.NEXUS_DEV_URL === 'http://127.0.0.
 const hasLock = app.requestSingleInstanceLock();
 if (!hasLock) app.quit();
 let win, tray, store, native, quit = false, scanning = false, library = { games: [], startApps: [], warnings: [], scannedAt: null };
-let activeService = null, overlay = false, metrics = {}, networkSample = null;
+let activeService = null, activeServiceOwner = null, overlay = false, metrics = {}, networkSample = null;
 let dashboardWanted = true, positioning = false, repositionTimer;
 let desktop, artwork, hardware, rgb, updates, marketplace; let nativeApps = {}; let nativeOpening = null; let serviceGeneration = 0; let stopping = false;
 const radio = new RadioDirectory();
@@ -122,6 +122,7 @@ function hideService() {
   serviceGeneration++;
   for (const popup of appPopups.values()) if (!popup.isDestroyed()) popup.hide();
   activeService = null;
+  activeServiceOwner = null;
 }
 const serviceDefinition = id => SERVICES[id] || store.data.webWidgets.find(w => w.id === id) || (typeof id === 'string' && id.startsWith('store:') ? marketplace?.service(id.slice(6)) : null);
 function updateTray() {
@@ -150,16 +151,17 @@ async function launchNative(target) {
     child.once('error', reject); child.once('spawn', () => { child.unref(); resolve(); });
   });
 }
-async function openService(id) {
-  if (activeService === id && SERVICES[id]?.native) return nativeOpening;
-  const task = openServiceInternal(id); nativeOpening = task;
+async function openService(id, owner = null) {
+  if (activeService === id && SERVICES[id]?.native) { activeServiceOwner = owner; await desktop?.request('show'); return nativeOpening; }
+  const task = openServiceInternal(id, owner); nativeOpening = task;
   try { return await task; } finally { if (nativeOpening === task) nativeOpening = null; }
 }
-async function openServiceInternal(id) {
+async function openServiceInternal(id, owner = null) {
   const definition = serviceDefinition(id);
   if (!definition) throw new Error('Onbekende app.');
   hideService();
   activeService = id;
+  activeServiceOwner = owner;
   if (definition.native) {
     const generation = serviceGeneration;
     serviceEvent(id, { loading: true, error: null, native: true });
@@ -374,14 +376,14 @@ function installHandlers() {
     if (library.protocols?.[LAUNCHERS[name].split(':')[0]] === false) throw new Error(`${name} is niet geïnstalleerd of heeft geen geregistreerde snelkoppeling. Installeer de launcher of voeg een game handmatig toe.`);
     return shell.openExternal(LAUNCHERS[name]);
   });
-  handle('service:action', async (action, id) => {
+  handle('service:action', async (action, id, owner = null) => {
     const definition = serviceDefinition(id);
-    if (action === 'hide') { if (!id || activeService === id) hideService(); return; }
+    if (action === 'hide') { if (!id || (activeService === id && (!owner || activeServiceOwner === owner))) hideService(); return; }
     if (!definition) throw new Error('Onbekende app.');
-    if (action === 'open') return openService(id);
+    if (action === 'open') return openService(id, owner);
     if (action === 'browser' && id === 'xbox') return shell.openExternal(definition.url);
     if (definition.native) {
-      if (action === 'reload') { hideService(); return openService(id); }
+      if (action === 'reload') { hideService(); return openService(id, owner); }
       if (action === 'external') {
         await desktop.request('release', id); hideService();
         if (!nativeApps[id]?.installed) nativeApps = await desktop.request('inventory');
@@ -403,14 +405,24 @@ function installHandlers() {
       await view.webContents.session.clearStorageData(); await view.webContents.session.clearCache(); view.webContents.loadURL(definition.url).catch(() => {});
     }
   });
-  handle('service:bounds', bounds => {
-    if (!activeService || !bounds) return;
+  handle('service:bounds', async (id, owner, bounds) => {
+    if (typeof id === 'object') { bounds = id; id = activeService; owner = null; }
+    if (!activeService || activeService !== id || (owner && activeServiceOwner !== owner) || !bounds) return;
     const view = views.get(activeService); const size = win.getContentBounds();
     if ((view || SERVICES[activeService]?.native) && ['x', 'y', 'width', 'height'].every(k => Number.isFinite(bounds[k]))) {
-      const x = Math.max(0, Math.min(size.width - 1, Math.round(bounds.x))); const y = Math.max(60, Math.min(size.height - 1, Math.round(bounds.y)));
-      const rect = { x, y, width: Math.max(1, Math.min(size.width - x, Math.round(bounds.width))), height: Math.max(1, Math.min(size.height - y, Math.round(bounds.height))) };
-      if (SERVICES[activeService]?.native) return desktop?.request('bounds', { ...rect, parentWidth: size.width });
-      view.setBounds(rect);
+      const left = Math.max(0, Math.round(bounds.x)), top = Math.max(65, Math.round(bounds.y));
+      const right = Math.min(size.width, Math.round(bounds.x + bounds.width)), bottom = Math.min(size.height - 31, Math.round(bounds.y + bounds.height));
+      if (right <= left || bottom <= top) {
+        if (SERVICES[activeService]?.native) return desktop?.request('hide', activeService);
+        view.setVisible(false); return;
+      }
+      const rect = { x: left, y: top, width: right - left, height: bottom - top };
+      if (SERVICES[activeService]?.native) {
+        await desktop?.request('bounds', { ...rect, parentWidth: size.width });
+        if (activeService !== id || (owner && activeServiceOwner !== owner)) return;
+        return desktop?.request('show');
+      }
+      view.setBounds(rect); view.setVisible(true);
     }
   });
   handle('config:export', async () => {

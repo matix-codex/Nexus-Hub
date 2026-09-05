@@ -4,7 +4,7 @@ Een Windows-dashboard voor je tweede scherm met games, Windows-apps, hardwaremet
 
 ## Installeren
 
-Download **Nexus-Hub-Setup-1.3.1.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest), of werk vanuit Nexus 1.2.0 bij via **Instellingen → Nexus-updates**. Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
+Download **Nexus-Hub-Setup-1.4.0.exe** via de [nieuwste GitHub-release](https://github.com/matix-codex/Nexus-Hub/releases/latest), of werk vanuit Nexus 1.2.0 of nieuwer bij via **Instellingen → Nexus-updates**. Vereist Windows 10/11 x64. Node.js is niet nodig voor de geïnstalleerde app.
 
 Kies in **Instellingen** je extra beeldscherm en schakel **Volledig scherm** in. Nexus bewaart de keuze, ook na herstart en voor de compacte overlay. Als het scherm wordt losgekoppeld, wacht Nexus verborgen op datzelfde scherm. Via **Vast scherm** in het systeemvak kun je een ander scherm kiezen.
 
@@ -25,7 +25,7 @@ Kies **Update downloaden** en daarna **Installeren en herstarten**. **Later** st
 
 Onder **Instellingen → Nexus-updates** staan de huidige versie, laatste controle en een handmatige controleknop. Automatisch controleren kun je daar uitschakelen. Bij verbindings- of downloadproblemen blijft Nexus bruikbaar en kun je opnieuw proberen. Een download die op de achtergrond afloopt, vraagt daarna om installatie.
 
-**Eenmalige overstap:** versie 1.1.0 en ouder hebben nog geen updater. Installeer 1.3.1 één keer met de installer; volgende versies worden vanuit Nexus aangeboden.
+**Eenmalige overstap:** versie 1.1.0 en ouder hebben nog geen updater. Installeer 1.4.0 één keer met de installer; volgende versies worden vanuit Nexus aangeboden.
 
 ## Games en hoezen
 
@@ -36,13 +36,15 @@ Onder **Instellingen → Nexus-updates** staan de huidige versie, laatste contro
 
 ## Echte Windows-apps
 
-Discord, WhatsApp en Spotify hebben elk een eigen dashboardwidget. **Open op dashboard** toont de Windows-app in de appwerkruimte, met tabs voor Discord, WhatsApp, Spotify en Xbox. Sluit de werkruimte om terug te keren naar je widgets, of open de app via de zijbalk. De appwerkruimte houdt het native venster op een vaste plek; de widgets komen terug zodra je de werkruimte sluit.
+Discord en WhatsApp hebben een interactieve berichtenwidget. Kies **Berichten tonen** om de kaart op het dashboard uit te klappen. Het echte venster van de officiële Windows-app verschijnt in die kaart, met je gesprekken en invoerveld. Je kunt daar direct lezen, typen en reageren; de rest van het dashboard blijft zichtbaar. Met de sluitknop in de widget klap je de kaart weer in. Er is één actieve Windows-app tegelijk binnen Nexus; een andere app openen wisselt de actieve ruimte.
+
+Spotify gebruikt **Open op dashboard** en verschijnt in de grotere appwerkruimte, met tabs voor Discord, WhatsApp, Spotify en Xbox. De zijbalk kan elke app ook schermvullend binnen Nexus openen.
 
 **WhatsApp, Discord, Spotify en Xbox gebruiken de geïnstalleerde Windows-app.** Er wordt voor deze vier apps geen webpagina of WebView2-speler geopend. Hun bestaande aanmelding, gesprekken, voice- en muziekfuncties blijven in de oorspronkelijke app.
 
-Nexus plaatst het native appvenster op het geselecteerde scherm, boven de app-ruimte in Nexus. Tijdens beheer verdwijnt dat venster uit de taakbalk. Bij paginawisseling wordt het verborgen; audio en gesprekken blijven doorlopen. Bij afsluiten zet Nexus de oorspronkelijke vensterpositie en taakbalkstijl terug. **Los openen** geeft het venster terug aan Windows.
+Nexus plaatst het native appvenster op het geselecteerde scherm, boven de widget of app-ruimte in Nexus. Tijdens beheer verdwijnt dat venster uit de taakbalk. Bij paginawisseling of een Nexus-dialoog wordt het verborgen; audio en gesprekken blijven doorlopen. Daarna keert het venster terug op dezelfde plek. Bij afsluiten zet Nexus de oorspronkelijke vensterpositie en taakbalkstijl terug. **Los openen** geeft het venster terug aan Windows.
 
-De apps behouden hun eigen proces en eventuele eigen titelbalk. Dit is vensterbeheer, geen aangepaste kopie van hun interface. Minimale venstergrootte, app-updates, afzonderlijke pop-ups en verschillen in beheerdersrechten kunnen de plaatsing beperken. Bij een fout biedt Nexus opnieuw plaatsen en los openen aan. Nexus leest geen wachtwoorden, tokens of chatgeschiedenis. Aanmelden en uitloggen doe je in de Windows-app.
+De apps behouden hun eigen proces en eventuele eigen titelbalk. Dit is vensterbeheer, geen aangepaste kopie van hun interface. Berichten worden rechtstreeks door Discord of WhatsApp getoond en verzonden; Nexus leest, kopieert, indexeert of bewaart de chatinhoud niet. Minimale venstergrootte, app-updates, afzonderlijke pop-ups en verschillen in beheerdersrechten kunnen de plaatsing beperken. Bij een fout biedt Nexus opnieuw plaatsen en los openen aan. Nexus leest geen wachtwoorden of tokens. Aanmelden en uitloggen doe je in de Windows-app.
 
 Xbox opent binnen de Nexus-appwerkruimte; Cloud Gaming kan met de aparte knop in de browser worden geopend. Eigen HTTPS-webwidgets blijven in afzonderlijke sandboxvensters zonder Node-toegang of Nexus-preload.
 
@@ -133,4 +135,4 @@ De updater-smoketest gebruikt de echte electron-updater-downloadcode met een lok
 
 Voor een nieuwe release: verhoog de versie in package.json en package-lock.json, werk .github/release-notes.md bij en publiceer via de Windows-workflow. Deze plaatst de installer, SHA-256-bestand, **latest.yml** en **.exe.blockmap** samen in een conceptrelease en maakt die pas daarna openbaar. De updatebron is vast ingesteld op matix-codex/Nexus-Hub; er is geen GitHub-token in de app nodig.
 
-In 1.1.0 lokaal gecontroleerd: echte gamehoezen, RTX 2070-telemetrie, GPU-tellers, radio die audio decodeert, favorieten en doorlopende radio bij navigatie; vensterbeheer voor WhatsApp, Discord en Spotify; schermkeuze na loskoppelen en herstart. Gesprekken versturen, bellen en accountwijzigingen maken geen deel uit van de test.
+Lokaal gecontroleerd: echte gamehoezen, RTX 2070-telemetrie, GPU-tellers, radio die audio decodeert, favorieten en doorlopende radio bij navigatie; vensterbeheer voor WhatsApp, Discord, Spotify en Xbox; interactieve Discord- en WhatsApp-berichtvensters in hun dashboardwidgets; schermkeuze na loskoppelen en herstart. De test controleert dat de widgets muis- en toetsenbordinvoer ontvangen, zonder een echt bericht te versturen of chatinhoud uit te lezen. Bellen en accountwijzigingen maken geen deel uit van de test.

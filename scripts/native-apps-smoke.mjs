@@ -39,6 +39,24 @@ try {
     await assertEventually(async () => (await managed()).every(w => !w.visible));
     console.log(`PASS: ${label} is visible and receives hit tests above Nexus, follows the topmost toggle, and hides for dialogs/navigation.`);
   }
+  for (const [id,label] of [['discord','Discord'],['whatsapp','WhatsApp']]) {
+    await page.locator('.widget-app-'+id).getByRole('button',{name:'Berichten tonen',exact:true}).click();
+    await usable(id,true);
+    assert.equal(await page.locator('.widget-app-'+id+'.native-widget-expanded').count(),1);
+    assert.equal(await page.locator('.dashboard-app-space').count(),0);
+    assert.ok(await page.locator('.dashboard-grid .widget').count()>1);
+    const widgetWindow=(await managed()).find(w=>w.id===id);
+    assert.ok(widgetWindow.visible&&widgetWindow.interactive&&widgetWindow.width>600&&widgetWindow.height>400);
+    if(id==='discord') {
+      await page.getByRole('button',{name:'Zoeken'}).click();
+      await assertEventually(async()=>(await managed()).every(w=>!w.visible));
+      await page.getByRole('button',{name:'Venster sluiten',exact:true}).click();
+      await usable(id,true);
+    }
+    await page.getByRole('button',{name:label+'-berichten verbergen'}).click();
+    await assertEventually(async()=>(await managed()).every(w=>!w.visible));
+    console.log(`PASS: ${label} messages use the official interactive app inside the dashboard widget; dialogs pause and resume it safely.`);
+  }
   await page.locator('.widget-app-spotify').getByRole('button', { name: 'Open op dashboard', exact: true }).click();
   await usable('spotify', true);
   await page.locator('.dashboard-app-tabs').getByRole('button', { name: 'Xbox', exact: true }).click();

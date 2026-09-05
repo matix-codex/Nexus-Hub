@@ -44,7 +44,7 @@ export default function App() {
   const [state, setState] = useState(null), [metrics, setMetrics] = useState({}), [history, setHistory] = useState({ cpu: [], gpu: [], ram: [], down: [], up: [] });
   const [page, setPage] = useState('dashboard'), [edit, setEdit] = useState(false), [modal, setModal] = useState(null), [toast, setToast] = useState(null), [search, setSearch] = useState(''), [serviceStatus, setServiceStatus] = useState({});
   const player = useRadio();
-  const [marketplace,setMarketplace]=useState(null),[dashboardApp,setDashboardApp]=useState(null);
+  const [marketplace,setMarketplace]=useState(null),[dashboardApp,setDashboardApp]=useState(null),[inlineApp,setInlineApp]=useState(null);
   const [update, setUpdate] = useState(null); const shownUpdate = useRef(0);
   const now = useNow(); const toastTimer = useRef();
   const notify = (text, error = false) => { clearTimeout(toastTimer.current); setToast({ text, error }); toastTimer.current = setTimeout(() => setToast(null), error ? 6500 : 3500); };
@@ -74,12 +74,8 @@ export default function App() {
     };
     window.addEventListener('keydown', listener); return () => window.removeEventListener('keydown', listener);
   }, []);
-  const navigate = next => { run(() => api.service('hide')); setDashboardApp(null); setPage(next); setSearch(''); setModal(null); setEdit(false); };
+  const navigate = next => { run(() => api.service('hide')); setDashboardApp(null); setInlineApp(null); setPage(next); setSearch(''); setModal(null); setEdit(false); };
   useEffect(() => { if (state?.overlay) navigate('dashboard'); }, [state?.overlay]);
-  useEffect(() => {
-    const embedded = dashboardApp || ((state?.services?.[page] || state?.webWidgets.some(w => w.id === page) || marketplace?.installed.some(p=>`store:${p.id}`===page && p.content.type==='web')) && page);
-    if (embedded) run(() => modal ? api.service('hide') : api.service('open', embedded));
-  }, [modal]);
   if (!state) return <div className="boot"><Brand /><span>Je command center wordt klaargezet…</span></div>;
   const { settings, library, favorites } = state;
   const layout = state.layouts[settings.profile] || [];
@@ -92,8 +88,9 @@ export default function App() {
   const moveWidget = (id, shift) => { const next = [...layout], i = next.indexOf(id), j = i + shift; if (j >= 0 && j < next.length) { [next[i], next[j]] = [next[j], next[i]]; updateLayout(next); } };
   const goService = id => { navigate(id); setServiceStatus(old => ({ ...old, [id]: { loading: true } })); };
   const mediaPlayer={...player,play:station=>{if(metrics.media?.playing)run(()=>api.media('pause','windows'));player.play(station);changeSettings({mediaSource:'radio'});}};
-  const openAppWidget=id=>{document.querySelector('.main-content')?.scrollTo({top:0});setEdit(false);setModal(null);setDashboardApp(id);};
-  const context = { player:mediaPlayer, marketplace, updateLayout, openAppWidget, state, update, metrics, history, now, run, notify, navigate, gameLaunch, goService, setModal, changeSettings };
+  const openAppWidget=id=>{setEdit(false);setModal(null);if(['discord','whatsapp'].includes(id)){const opening=inlineApp!==id;setDashboardApp(null);setInlineApp(opening?id:null);if(opening)setTimeout(()=>{const scroller=document.querySelector('.main-content'),widget=document.querySelector(`.widget-app-${id}`);if(!scroller||!widget)return;const outer=scroller.getBoundingClientRect(),inner=widget.getBoundingClientRect();scroller.scrollTop+=inner.top-outer.top-8;},100);}else{document.querySelector('.main-content')?.scrollTo({top:0});setInlineApp(null);setDashboardApp(id);}};
+  const closeInlineApp=id=>setInlineApp(current=>current===id?null:current);
+  const context = { player:mediaPlayer, marketplace, updateLayout, openAppWidget, closeInlineApp, inlineApp, servicePaused:Boolean(modal), serviceStatus, state, update, metrics, history, now, run, notify, navigate, gameLaunch, goService, setModal, changeSettings };
   return <div style={themeStyle(marketplace,settings.storeTheme)} className={`app theme-${settings.theme} ${settings.storeTheme?'theme-store':''} density-${settings.density} ${settings.reduceMotion ? 'reduce-motion' : ''} ${state.overlay ? 'is-overlay' : ''}`}>
     <aside className="sidebar"><button className="brand-button" aria-label="Nexus dashboard" onClick={() => navigate('dashboard')}><Brand small /></button><div className="nav-main">
       <Nav icon={LayoutDashboard} label="Dashboard" active={page === 'dashboard'} onClick={() => navigate('dashboard')} />
@@ -119,7 +116,8 @@ export default function App() {
           <div className={`dashboard-grid ${edit ? 'editing' : ''}`}>{layout.map((id, index) => {
             const title = widgetInfo[id]?.[0] || state.webWidgets.find(w => w.id === id)?.name || marketplace?.installed.find(p=>`store:${p.id}`===id)?.name || 'Widget';
             const wide = state.sizes[id] === 'wide' || (state.sizes[id] !== 'normal' && ['welcome', 'system', 'library'].includes(id));
-            return <section key={id} className={`widget widget-${id.startsWith('web-') ? 'web' : id} ${wide ? 'span-2' : ''}`} draggable={edit} onDragStart={e => { e.dataTransfer.setData('text/nexus-widget', id); e.dataTransfer.effectAllowed = 'move'; }} onDragOver={e => { if (edit) e.preventDefault(); }} onDrop={e => { e.preventDefault(); const source = e.dataTransfer.getData('text/nexus-widget'); if (!layout.includes(source) || source === id) return; const next = layout.filter(w => w !== source); next.splice(next.indexOf(id), 0, source); updateLayout(next); }}>
+            const inlineExpanded = id === `app-${inlineApp}`;
+            return <section key={id} className={`widget widget-${id.startsWith('web-') ? 'web' : id} ${wide ? 'span-2' : ''} ${inlineExpanded?'native-widget-expanded':''}`} draggable={edit&&!inlineExpanded} onDragStart={e => { e.dataTransfer.setData('text/nexus-widget', id); e.dataTransfer.effectAllowed = 'move'; }} onDragOver={e => { if (edit) e.preventDefault(); }} onDrop={e => { e.preventDefault(); const source = e.dataTransfer.getData('text/nexus-widget'); if (!layout.includes(source) || source === id) return; const next = layout.filter(w => w !== source); next.splice(next.indexOf(id), 0, source); updateLayout(next); }}>
               {edit && <div className="widget-edit"><span><Grip size={14} />{title}</span><div><IconButton icon={ChevronLeft} label={`${title} naar links`} disabled={index === 0} onClick={() => moveWidget(id, -1)} /><IconButton icon={ChevronRight} label={`${title} naar rechts`} disabled={index === layout.length - 1} onClick={() => moveWidget(id, 1)} /><IconButton icon={Expand} label={`Breedte van ${title} wijzigen`} onClick={() => run(() => api.layout(settings.profile, layout, { [id]: wide ? 'normal' : 'wide' }))} /><IconButton icon={X} label={`${title} verbergen`} onClick={() => updateLayout(layout.filter(w => w !== id))} /></div></div>}
               <Widget id={id} {...context} />
             </section>;
@@ -154,7 +152,10 @@ function Empty({ icon: Icon, title, text, action, onClick, compact = false }) { 
 function Widget({ id, ...ctx }) {
   const { state, metrics, history, now, run, navigate, goService, gameLaunch, setModal } = ctx;
   const { library, settings, favorites } = state;
-  if (id.startsWith('app-') && state.services[id.slice(4)]) return <AppWidget id={id.slice(4)} {...ctx}/>;
+  if (id.startsWith('app-') && state.services[id.slice(4)]) {
+    const appId=id.slice(4), expanded=ctx.inlineApp===appId;
+    return <AppWidget id={appId} expanded={expanded} {...ctx}>{expanded&&<NativeServicePage id={appId} definition={state.services[appId]} status={ctx.serviceStatus?.[appId]} inline onClose={()=>ctx.closeInlineApp(appId)} {...ctx}/>}</AppWidget>;
+  }
   if (id.startsWith('store:')) {const extension=ctx.marketplace?.installed.find(p=>`store:${p.id}`===id);return extension?<StoreWidget extension={extension} navigate={navigate}/>:null;}
   if (id === 'welcome') {
     const hour = new Date(now).getHours(); const greeting = hour < 12 ? 'Goedemorgen' : hour < 18 ? 'Goedemiddag' : 'Goedenavond';
@@ -219,33 +220,39 @@ function Library(ctx) {
   </>;
 }
 function Apps({ state, run, goService }) { return <><div className="page-heading"><div><div className="eyebrow"><span className="tiny-line" /> YOUR PEOPLE. YOUR PLATFORMS.</div><h1>Alles blijft verbonden<span className="accent">.</span></h1><p>Je vertrouwde apps, met een eigen plek in Nexus.</p></div></div><div className="apps-grid">{Object.entries(state.services).map(([id, s]) => <section className="app-card" key={id}><div className="app-card-top"><AppMark id={id} color={s.color} size="large" /><span className="pill">WINDOWS APP</span></div><h2>{s.name}</h2><p>{id === 'discord' ? 'De echte Discord-app op je Nexus-scherm. Je bestaande account, servers en voice blijven beschikbaar.' : id === 'whatsapp' ? 'Gebruik de geïnstalleerde WhatsApp-app van Windows met je bestaande gesprekken en aanmelding.' : id === 'spotify' ? 'De geïnstalleerde Spotify-app, inclusief je eigen playlists, podcasts en offline bibliotheek.' : 'De Xbox-app binnen Nexus voor je pc-games, Game Pass en partyfuncties. Cloud Gaming blijft apart beschikbaar.'}</p><div className="app-card-actions"><button className="button primary" onClick={() => goService(id)}>Open in Nexus<ArrowUpRight size={15} /></button></div></section>)}</div><section className="settings-section"><div className="section-title"><LayoutGrid size={18} /><div><h2>Alle launchers binnen handbereik</h2><p>Open je geïnstalleerde clients. Games start je rechtstreeks vanuit de bibliotheek.</p></div></div><div className="launcher-cards">{Object.keys(state.launchers).map(name => <button key={name} onClick={() => name === 'Xbox' ? goService('xbox') : run(() => api.launcher(name))}><AppMark name={name} /><span>{name}</span><ArrowUpRight size={16} /></button>)}</div></section></>; }
-function ServicePage({ id, definition, status, state, run }) {
-  const target = useRef(); const externalOnly = id === 'xbox';
+let serviceOwnerSequence=0;
+function ServicePage({ id, definition, status, state, run, servicePaused=false }) {
+  const target = useRef(); const owner=useRef(); if(!owner.current) owner.current=`renderer-${++serviceOwnerSequence}`; const externalOnly = id === 'xbox';
   useEffect(() => {
-    if (externalOnly) return;
+    if (externalOnly||servicePaused) return;
     let disposed = false;
-    const resize = () => { if (target.current && !disposed) { const b = target.current.getBoundingClientRect(); api.serviceBounds({ x: b.x, y: b.y, width: b.width, height: b.height }).catch(() => {}); } };
-    run(() => api.service('open', id)).then(resize);
+    const resize = () => { if (target.current && !disposed) { const b = target.current.getBoundingClientRect(); api.serviceBounds(id,owner.current,{ x: b.x, y: b.y, width: b.width, height: b.height }).catch(() => {}); } };
+    run(() => api.service('open',id,owner.current)).then(resize);
     const observer = new ResizeObserver(resize); if (target.current) observer.observe(target.current);
+    document.addEventListener('scroll',resize,true);
     window.addEventListener('resize', resize);
-    return () => { disposed = true; observer.disconnect(); window.removeEventListener('resize', resize); api.service('hide', id).catch(() => {}); };
-  }, [id]);
+    return () => { disposed = true; observer.disconnect(); document.removeEventListener('scroll',resize,true); window.removeEventListener('resize', resize); api.service('hide',id,owner.current).catch(() => {}); };
+  }, [id,servicePaused]);
   return <><div className="service-toolbar"><div><AppMark id={id} color={definition.color} /><span><h1>{definition.name}</h1><small>{externalOnly ? 'Windows-integratie' : 'Eigen Nexus-app · Sessie lokaal bewaard'}</small></span></div>
     <div>{!externalOnly && <><span className="session-badge"><ShieldCheck size={13} />Eigen sessie</span><IconButton icon={ArrowLeft} label="Terug in app" onClick={() => run(() => api.service('back', id))} /><IconButton icon={RefreshCw} label="App opnieuw laden" onClick={() => run(() => api.service('reload', id))} /></>}</div></div>
     <div ref={target} className="service-view">{externalOnly ? <div className="service-intro"><AppMark id={id} color={definition.color} size="large" /><h2>Een wereld aan games.</h2><p>Start de Xbox-app voor je games en party’s. Xbox Cloud Gaming opent in je browser.</p><button className="button primary" onClick={() => run(() => api.service('external', id))}>Xbox-app starten<ArrowUpRight size={16} /></button><button className="text-link" onClick={() => run(() => api.service('browser', id))}>Open Xbox Cloud Gaming<ExternalLink size={14} /></button></div>
     : status?.error || state.preview ? <Empty icon={Globe} title="De app kon niet worden geladen" text={state.preview ? 'Deze app werkt in de Nexus Hub-desktopapp.' : status.error || 'Controleer je verbinding en probeer opnieuw.'} action="Opnieuw proberen" onClick={() => run(() => api.service('reload', id))} />
     : <div className="service-loading"><RefreshCw size={25} className="spin" /><p>{definition.name} laden…</p></div>}</div></>;
 }
-function NativeServicePage({ id, definition, status, run, state }) {
-  const target = useRef();
+function NativeServicePage({ id, definition, status, run, state, servicePaused=false, inline=false, onClose }) {
+  const target = useRef(); const owner=useRef(); if(!owner.current) owner.current=`renderer-${++serviceOwnerSequence}`;
   useEffect(() => {
+    if(servicePaused) return;
     let disposed = false;
-    const resize = () => { if (!disposed && target.current) { const b = target.current.getBoundingClientRect(); api.serviceBounds({ x: b.x, y: b.y, width: b.width, height: b.height }).catch(() => {}); } };
-    run(() => api.service('open', id)).then(resize);
+    const resize = () => { if (!disposed && target.current) { const b = target.current.getBoundingClientRect(); api.serviceBounds(id,owner.current,{ x: b.x, y: b.y, width: b.width, height: b.height }).catch(() => {}); } };
+    run(() => api.service('open',id,owner.current)).then(resize);
     const observer = new ResizeObserver(resize); if (target.current) observer.observe(target.current);
-    return () => { disposed = true; observer.disconnect(); api.service('hide', id).catch(() => {}); };
-  }, [id]);
-  return <><div className="service-toolbar"><div><AppMark id={id} color={definition.color} /><span><h1>{definition.name}</h1><small>Geïnstalleerde Windows-app · Bestaande aanmelding</small></span></div><div><span className="session-badge"><Monitor size={13} />Windows-app</span>{id === 'xbox' && <button className="button secondary" onClick={() => run(() => api.service('browser', id))}>Cloud Gaming<ExternalLink size={14} /></button>}<button className="button secondary" onClick={() => run(() => api.service('external', id))}>Los openen<ExternalLink size={14} /></button><button className="button secondary" onClick={() => run(() => api.service('reload', id))}><RefreshCw size={15} />In Nexus plaatsen</button></div></div><div ref={target} className="service-view"><div className="service-intro native-app-card"><AppMark id={id} color={definition.color} size="large" /><h2>{status?.error ? definition.name + ' verbinden' : status?.loading ? 'Windows-app openen…' : definition.name + ' op je Nexus-scherm'}</h2><p>{state.preview ? 'Open Nexus Hub op Windows om je geïnstalleerde apps te gebruiken.' : status?.error || 'Nexus plaatst het echte appvenster in deze ruimte. Je aanmelding en gegevens blijven in de Windows-app. Bij afsluiten van Nexus wordt het venster teruggezet.'}</p>{status?.error && <button className="button primary" onClick={() => run(() => api.service('reload', id))}>Opnieuw proberen</button>}{status?.loading && <RefreshCw size={24} className="spin" />}</div></div></>;
+    document.addEventListener('scroll',resize,true);
+    window.addEventListener('resize',resize);
+    const positionTimer=inline?setInterval(resize,160):null;
+    return () => { disposed = true; observer.disconnect(); if(positionTimer)clearInterval(positionTimer); document.removeEventListener('scroll',resize,true); window.removeEventListener('resize',resize); api.service('hide',id,owner.current).catch(() => {}); };
+  }, [id,servicePaused]);
+  return <div className={inline?'inline-native-widget':''}><div className="service-toolbar"><div><AppMark id={id} color={definition.color} /><span><h1>{inline?`${definition.name}-berichten`:definition.name}</h1><small>{inline?'Live vanuit de officiële Windows-app · typ en reageer direct':'Geïnstalleerde Windows-app · Bestaande aanmelding'}</small></span></div><div><span className="session-badge"><ShieldCheck size={13} />Nexus leest niets mee</span>{id === 'xbox' && <button className="button secondary" onClick={() => run(() => api.service('browser', id))}>Cloud Gaming<ExternalLink size={14} /></button>}<button className="button secondary" onClick={() => run(() => api.service('external', id))}>Los openen<ExternalLink size={14} /></button><button className="button secondary" onClick={() => run(() => api.service('reload',id,owner.current))}><RefreshCw size={15} />In Nexus plaatsen</button>{inline&&<IconButton icon={X} label={`${definition.name}-berichten verbergen`} onClick={onClose}/>}</div></div><div ref={target} className="service-view"><div className="service-intro native-app-card"><AppMark id={id} color={definition.color} size="large" /><h2>{status?.error ? definition.name + ' verbinden' : status?.loading ? 'Windows-app openen…' : definition.name + ' op je Nexus-scherm'}</h2><p>{state.preview ? 'Open Nexus Hub op Windows om je geïnstalleerde apps te gebruiken.' : status?.error || (inline?'Je gesprekken verschijnen hier rechtstreeks vanuit de officiële Windows-app. Je kunt in het appvenster lezen, typen en reageren. Nexus bewaart of verwerkt geen berichten.':'Nexus plaatst het echte appvenster in deze ruimte. Je aanmelding en gegevens blijven in de Windows-app. Bij afsluiten van Nexus wordt het venster teruggezet.')}</p>{status?.error && <button className="button primary" onClick={() => run(() => api.service('reload',id,owner.current))}>Opnieuw proberen</button>}{status?.loading && <RefreshCw size={24} className="spin" />}</div></div></div>;
 }
 function Settings({ state, update, changeSettings, run }) {
   const s = state.settings; const [name, setName] = useState(s.username);
