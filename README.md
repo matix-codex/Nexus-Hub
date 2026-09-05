@@ -85,7 +85,7 @@ Radio speelt binnen dezelfde widget met eigen volume, favoriete zenders en een k
 
 De [aparte GitHub-appstore](https://github.com/matix-codex/Nexus-Store) staat in **matix-codex/Nexus-Store**; de desktopcode en installers blijven in **Nexus-Hub**. Elk pakket heeft een eigen ID, versie, minimale Nexus-versie en checksum. Pakketten kunnen worden bijgewerkt zonder een nieuwe Nexus-installer.
 
-De eerste collectie heeft **12 uitbreidingen**: World Clock, Focus List, Quick Calc, Countdown, Session Stopwatch, Breathing Space, Wikipedia, Twitch en de thema's Obsidian, Ocean Blue, Sunset en Rose Quartz.
+De collectie heeft **42 uitbreidingen**: 21 lokale apps, widgets en tools, 7 webapps en 14 thema's. Daaronder vallen Pomodoro Deck, Habit Streak, Water Tracker, Game Backlog Picker, Unit Converter, Password Generator, YouTube, SoundCloud, Steam Store, Cyberpunk Neon, Nord Frost, Matrix Terminal en Sakura Night.
 
 - Zoek en filter op apps, widgets, toepassingen en thema's. Installeer, open, plaats op het dashboard of verwijder een pakket.
 - De tab **Updates** biedt updates per geïnstalleerd pakket. De catalogus wordt bij opstarten, elke zes uur en met **Updates controleren** opgehaald. Installeren en bijwerken start je zelf.
